@@ -75,11 +75,10 @@ export default function Investments() {
     try {
       const qty = parseFloat(formData.quantity || '1');
       const price = parseFloat(formData.lastPricePerUnit || '0');
-      const multiplier = formData.unitType === 'Lot' ? 100 : 1;
 
       const payload = {
         ...formData,
-        currentValue: (qty * price * multiplier).toString(),
+        currentValue: (qty * price).toString(),
       };
       if (editingId) {
         await axios.put(`${API_URL}/investments/${editingId}`, payload);
@@ -118,7 +117,11 @@ export default function Investments() {
         category: formData.category
       });
       if (res.data.price) {
-        setFormData({ ...formData, lastPricePerUnit: res.data.price.toString() });
+        let aiPrice = parseFloat(res.data.price);
+        if (formData.unitType === 'Lot') {
+          aiPrice = aiPrice * 100;
+        }
+        setFormData({ ...formData, lastPricePerUnit: aiPrice.toString() });
       } else {
         alert("Gagal mendapatkan harga. Silakan isi manual.");
       }
