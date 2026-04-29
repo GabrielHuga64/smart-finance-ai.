@@ -135,7 +135,7 @@ export default function Investments() {
           <h1 className="text-3xl font-bold text-slate-800">Investments</h1>
           <p className="text-slate-500 mt-1">Manage and track your investment portfolio.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setFormData({ name: '', category: '', investedAmount: '', currentValue: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditingId(null); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', investedAmount: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={20} />
           <span>Add New</span>
         </button>
