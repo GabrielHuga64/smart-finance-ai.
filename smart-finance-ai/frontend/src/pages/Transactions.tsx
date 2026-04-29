@@ -115,8 +115,8 @@ export default function Transactions() {
   if (loading) return <div className="flex h-full items-center justify-center"><div className="animate-pulse text-sky-500">Loading...</div></div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end">
+    <div className="space-y-6 pb-20 md:pb-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800">Transactions</h1>
           <p className="text-slate-500 mt-1">Manage your income and expenses.</p>
