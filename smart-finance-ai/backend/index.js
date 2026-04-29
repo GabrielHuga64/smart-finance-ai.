@@ -231,8 +231,8 @@ app.post('/api/ai/get-price', async (req, res) => {
     ATURAN SANGAT KETAT:
     1. Anda TIDAK BOLEH menebak atau menggunakan data histori dari ingatan Anda. Anda WAJIB mengambil data dari hasil pencarian (seperti Google Finance, Yahoo Finance, atau IDX).
     2. Jika saham (misalnya BBRI), cari secara spesifik "Harga saham ${name} hari ini" atau "BBRI.JK stock price". Pastikan Anda mengembalikan harga per lembar HARI INI di Bursa Efek Indonesia.
-    3. HANYA kembalikan ANGKA harganya saja (tanpa titik, tanpa koma, tanpa "Rp", tanpa desimal, dan tanpa teks penjelasan apapun). 
-    4. Contoh format sukses: 3070 (jika harga Rp 3.070), 5000 (jika harga Rp 5.000).`;
+    3. Kembalikan HANYA ANGKA harganya saja, lalu bungkus dengan tag <price> dan </price>. JANGAN tambahkan teks penjelasan apapun di luar tag ini.
+    4. Contoh format sukses: <price>3070</price> (jika harga Rp 3.070), <price>5000</price> (jika harga Rp 5.000).`;
 
     let response;
     try {
@@ -250,10 +250,26 @@ app.post('/api/ai/get-price', async (req, res) => {
       });
     }
 
-    let priceStr = response.text.replace(/[^0-9]/g, '');
+    const priceText = response.text || "";
+    console.log("AI Raw Response:", priceText);
+
+    let priceStr = "";
+    const match = priceText.match(/<price>([0-9\.,\s]+)<\/price>/i);
+    
+    if (match) {
+        priceStr = match[1].replace(/[^0-9]/g, '');
+    } else {
+        const numbers = priceText.match(/\d{3,}/g);
+        if (numbers && numbers.length > 0) {
+            priceStr = numbers[numbers.length - 1];
+        } else {
+            priceStr = priceText.replace(/[^0-9]/g, '');
+        }
+    }
+
     let price = parseFloat(priceStr);
 
-    if (isNaN(price)) {
+    if (isNaN(price) || priceStr === "") {
       throw new Error("Could not parse price from AI response");
     }
 
