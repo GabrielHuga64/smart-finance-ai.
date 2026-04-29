@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #38bdf8;
+  --color-primary-dark: #0284c7;
+  --color-success: #10b981; /* Green for Income */
+  --color-danger: #f43f5e; /* Red for Expense */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text-main: #334155;
+  --color-text-muted: #64748b;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-700 font-sans antialiased;
+  }
+}
+
+/* Dashboard Panel Utilities */
+.glass-panel {
+  @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+}
+
+.glass-input {
+  @apply bg-white border border-slate-300 text-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all;
+}
+
+.btn-primary {
+  @apply bg-sky-500 hover:bg-sky-600 text-white font-medium py-2.5 px-6 rounded-lg shadow-sm transition-all active:scale-95;
+}
+
+.btn-secondary {
+  @apply bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2.5 px-6 rounded-lg shadow-sm transition-all active:scale-95;
+}
+
+/* Custom Scrollbar for a clean look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
