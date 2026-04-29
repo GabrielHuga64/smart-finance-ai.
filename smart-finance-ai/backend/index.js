@@ -225,10 +225,15 @@ app.post('/api/ai/get-price', async (req, res) => {
   try {
     const { name, category } = req.body;
     
-    const prompt = `Cari tahu harga terkini (real-time) untuk investasi dengan nama "${name}" dan kategori "${category}" di pasar Indonesia. 
-    Jika saham, cari harga per lembar saham dalam Rupiah. Jika kripto (seperti Bitcoin/Ethereum), cari harga dalam Rupiah. Jika emas (seperti Emas Antam), cari harga per 1 gram dalam Rupiah. Jika reksadana, cari NAB (Nilai Aktiva Bersih) terbarunya.
+    const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const prompt = `Gunakan alat Google Search untuk mencari tahu harga pasar TERBARU HARI INI (${today}) untuk aset investasi dengan nama "${name}" (kategori: "${category}") di pasar Indonesia.
     
-    PENTING: Hanya kembalikan ANGKA harganya saja (tanpa titik ribuan, koma, huruf, atau simbol mata uang). Contoh jika harganya 1.500.000, kembalikan 1500000.`;
+    ATURAN PENCARIAN:
+    - Jika saham, pastikan itu adalah harga saham terbaru per HARI INI di Bursa Efek Indonesia (BEI/IDX). Cari harga penutupan terakhir atau harga live per 1 lembar saham dalam Rupiah.
+    - Jika kripto, cari harga live hari ini dalam Rupiah.
+    - Jika emas, cari harga emas batangan (misal Antam) per 1 gram hari ini dalam Rupiah.
+    
+    PENTING: Hanya kembalikan ANGKA harganya saja (tanpa titik ribuan, koma, huruf, desimal, atau simbol mata uang). Contoh: jika Anda menemukan Rp 3.070, kembalikan 3070. Wajib mengembalikan harga yang PALING BARU dan akurat.`;
 
     let response;
     try {
