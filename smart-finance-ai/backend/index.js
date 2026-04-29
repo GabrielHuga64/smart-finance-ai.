@@ -78,6 +78,11 @@ app.get('/api/investments', async (req, res) => {
   try {
     const investments = await prisma.investment.findMany({
       orderBy: { date: 'desc' },
+      include: {
+        purchases: {
+          orderBy: { date: 'desc' }
+        }
+      }
     });
     res.json(investments);
   } catch (error) {
@@ -115,6 +120,17 @@ app.post('/api/investments', async (req, res) => {
           date: date ? new Date(date) : new Date(),
         },
       });
+
+      await prisma.investmentPurchase.create({
+        data: {
+          investmentId: investment.id,
+          quantity: parseFloat(quantity),
+          pricePerUnit: parseFloat(investedAmount) / parseFloat(quantity),
+          totalAmount: parseFloat(investedAmount),
+          date: date ? new Date(date) : new Date(),
+        }
+      });
+
       return res.json(investment);
     } else {
       // Create new
@@ -132,9 +148,21 @@ app.post('/api/investments', async (req, res) => {
           date: date ? new Date(date) : new Date(),
         },
       });
+
+      await prisma.investmentPurchase.create({
+        data: {
+          investmentId: investment.id,
+          quantity: parseFloat(quantity),
+          pricePerUnit: parseFloat(investedAmount) / parseFloat(quantity),
+          totalAmount: parseFloat(investedAmount),
+          date: date ? new Date(date) : new Date(),
+        }
+      });
+
       return res.json(investment);
     }
   } catch (error) {
+    console.error("Failed to add investment:", error);
     res.status(500).json({ error: 'Failed to add investment' });
   }
 });
@@ -216,6 +244,53 @@ app.get('/api/summary', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to generate summary' });
+  }
+});
+
+// --- MONTHLY REPORTS ---
+
+app.get('/api/monthly-reports', async (req, res) => {
+  try {
+    const reports = await prisma.monthlyReport.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+app.post('/api/monthly-reports', async (req, res) => {
+  try {
+    const { month, totalAssets, totalIncome, totalExpense, investmentValue, aiAnalysis } = req.body;
+    
+    // Check if month already exists, update if yes
+    const existing = await prisma.monthlyReport.findFirst({
+      where: { month }
+    });
+
+    if (existing) {
+      const updated = await prisma.monthlyReport.update({
+        where: { id: existing.id },
+        data: { totalAssets, totalIncome, totalExpense, investmentValue, aiAnalysis }
+      });
+      return res.json(updated);
+    }
+
+    const report = await prisma.monthlyReport.create({
+      data: {
+        month,
+        totalAssets,
+        totalIncome,
+        totalExpense,
+        investmentValue,
+        aiAnalysis
+      }
+    });
+    res.json(report);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to save monthly report' });
   }
 });
 

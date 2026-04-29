@@ -37,4 +37,28 @@ model Investment {
   date             DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  purchases        InvestmentPurchase[]
+}
+
+model InvestmentPurchase {
+  id               String   @id @default(uuid())
+  investmentId     String
+  investment       Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  quantity         Float
+  pricePerUnit     Float
+  totalAmount      Float
+  date             DateTime @default(now())
+  createdAt        DateTime @default(now())
+}
+
+model MonthlyReport {
+  id               String   @id @default(uuid())
+  month            String   // e.g., "April 2026"
+  totalAssets      Float
+  totalIncome      Float
+  totalExpense     Float
+  investmentValue  Float
+  aiAnalysis       String?
+  createdAt        DateTime @default(now())
 }
