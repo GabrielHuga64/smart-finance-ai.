@@ -226,14 +226,13 @@ app.post('/api/ai/get-price', async (req, res) => {
     const { name, category } = req.body;
     
     const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    const prompt = `Gunakan alat Google Search untuk mencari tahu harga pasar TERBARU HARI INI (${today}) untuk aset investasi dengan nama "${name}" (kategori: "${category}") di pasar Indonesia.
+    const prompt = `Gunakan alat Google Search SEKARANG JUGA untuk mencari harga pasar REAL-TIME TERBARU HARI INI (${today}) untuk aset investasi: "${name}" (kategori: "${category}") di Indonesia.
     
-    ATURAN PENCARIAN:
-    - Jika saham, pastikan itu adalah harga saham terbaru per HARI INI di Bursa Efek Indonesia (BEI/IDX). Cari harga penutupan terakhir atau harga live per 1 lembar saham dalam Rupiah.
-    - Jika kripto, cari harga live hari ini dalam Rupiah.
-    - Jika emas, cari harga emas batangan (misal Antam) per 1 gram hari ini dalam Rupiah.
-    
-    PENTING: Hanya kembalikan ANGKA harganya saja (tanpa titik ribuan, koma, huruf, desimal, atau simbol mata uang). Contoh: jika Anda menemukan Rp 3.070, kembalikan 3070. Wajib mengembalikan harga yang PALING BARU dan akurat.`;
+    ATURAN SANGAT KETAT:
+    1. Anda TIDAK BOLEH menebak atau menggunakan data histori dari ingatan Anda. Anda WAJIB mengambil data dari hasil pencarian (seperti Google Finance, Yahoo Finance, atau IDX).
+    2. Jika saham (misalnya BBRI), cari secara spesifik "Harga saham ${name} hari ini" atau "BBRI.JK stock price". Pastikan Anda mengembalikan harga per lembar HARI INI di Bursa Efek Indonesia.
+    3. HANYA kembalikan ANGKA harganya saja (tanpa titik, tanpa koma, tanpa "Rp", tanpa desimal, dan tanpa teks penjelasan apapun). 
+    4. Contoh format sukses: 3070 (jika harga Rp 3.070), 5000 (jika harga Rp 5.000).`;
 
     let response;
     try {
