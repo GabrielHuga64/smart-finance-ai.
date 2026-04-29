@@ -73,9 +73,13 @@ export default function Investments() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const qty = parseFloat(formData.quantity || '1');
+      const price = parseFloat(formData.lastPricePerUnit || '0');
+      const multiplier = formData.unitType === 'Lot' ? 100 : 1;
+
       const payload = {
         ...formData,
-        currentValue: (parseFloat(formData.quantity || '1') * parseFloat(formData.lastPricePerUnit || '0')).toString(),
+        currentValue: (qty * price * multiplier).toString(),
       };
       if (editingId) {
         await axios.put(`${API_URL}/investments/${editingId}`, payload);

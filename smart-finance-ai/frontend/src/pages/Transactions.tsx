@@ -77,13 +77,18 @@ export default function Transactions() {
         await axios.post(`${API_URL}/transactions`, formData);
         
         if (formData.addToInvestment && formData.type === 'EXPENSE') {
+          const qty = parseFloat(formData.investmentQuantity || '1');
+          const amount = parseFloat(formData.amount || '0');
+          const multiplier = formData.investmentUnit === 'Lot' ? 100 : 1;
+          const pricePerUnit = amount / (qty * multiplier);
+
           await axios.post(`${API_URL}/investments`, {
             name: formData.investmentName,
             category: formData.investmentCategory,
             quantity: formData.investmentQuantity,
             unitType: formData.investmentUnit,
             investedAmount: formData.amount,
-            lastPricePerUnit: (parseFloat(formData.amount) / parseFloat(formData.investmentQuantity || '1')).toString(),
+            lastPricePerUnit: pricePerUnit.toString(),
             currentValue: formData.amount,
             date: formData.date
           });
