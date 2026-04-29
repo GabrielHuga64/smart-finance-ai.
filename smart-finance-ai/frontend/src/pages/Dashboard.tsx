@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowDownRight, ArrowUpRight, Wallet, TrendingUp } from 'lucide-react';
 import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useBalance } from '../context/BalanceContext';
+import Mascot from '../components/Mascot';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
 const COLORS = ['#38bdf8', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899'];
@@ -80,7 +81,7 @@ export default function Dashboard() {
       return acc;
     }, []);
 
-  // 3. Investment Data (Donut)
+  // 3. Investment Data (Donut - Global)
   const totalInvestment = summary.totalInvestmentValue || 1;
   const investmentData = investments.reduce<{name: string; value: number}[]>((acc, curr) => {
     const existing = acc.find(item => item.name === curr.category);
@@ -89,6 +90,21 @@ export default function Dashboard() {
     return acc;
   }, [])
   .map(item => ({ ...item, percentage: ((item.value / totalInvestment) * 100).toFixed(1) }));
+
+  // 3b. Investment Data (Sub-Categories)
+  const investmentCategories = [...new Set(investments.map(i => i.category))];
+  const subCategoryData: Record<string, {name: string; value: number; percentage: string}[]> = {};
+  
+  investmentCategories.forEach(category => {
+    const itemsInCategory = investments.filter(i => i.category === category);
+    const totalInCategory = itemsInCategory.reduce((sum, i) => sum + i.currentValue, 0) || 1;
+    
+    subCategoryData[category] = itemsInCategory.map(item => ({
+      name: item.name,
+      value: item.currentValue,
+      percentage: ((item.currentValue / totalInCategory) * 100).toFixed(1)
+    }));
+  });
 
   // 4. Asset Composition (Bar)
   const assetData = [
@@ -256,6 +272,42 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {/* 5. Investment Sub-Categories */}
+      {Object.keys(subCategoryData).length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-bold text-slate-800 mb-4 px-1">Investment Sub-Categories</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {Object.entries(subCategoryData).map(([category, data], idx) => (
+              <div key={category} className="glass-panel p-6">
+                <h4 className="text-md font-bold text-slate-700 mb-4 border-b border-slate-100 pb-2">{category}</h4>
+                <div className="h-[200px] flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {data.map((_entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[(index + idx * 2) % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: any) => formatCurrency(value)} contentStyle={{ borderRadius: '8px' }} />
+                      <Legend verticalAlign="bottom" height={30} wrapperStyle={{ fontSize: '11px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      <Mascot message="Halo! Semangat pantau portofolio ya!" mood="happy" />
     </div>
   );
 }

@@ -5,6 +5,14 @@ import { useBalance } from '../context/BalanceContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
 
+interface InvestmentPurchase {
+  id: string;
+  quantity: number;
+  pricePerUnit: number;
+  totalAmount: number;
+  date: string;
+}
+
 interface Investment {
   id: string;
   name: string;
@@ -17,6 +25,7 @@ interface Investment {
   averagePrice?: number;
   lastPricePerUnit?: number;
   date: string;
+  purchases?: InvestmentPurchase[];
 }
 
 export default function Investments() {
@@ -291,6 +300,39 @@ export default function Investments() {
                 <button type="submit" className="btn-primary px-4 py-2">{editingId ? 'Update' : 'Save'}</button>
               </div>
             </form>
+            
+            {editingId && (
+              <div className="mt-8 border-t border-slate-200 pt-6">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Purchase History (Lots)</h3>
+                <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-100 border-b border-slate-200 uppercase">
+                      <tr>
+                        <th className="px-4 py-2">Date</th>
+                        <th className="px-4 py-2 text-right">Qty</th>
+                        <th className="px-4 py-2 text-right">Price/Unit</th>
+                        <th className="px-4 py-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {investments.find(i => i.id === editingId)?.purchases?.map((lot) => (
+                        <tr key={lot.id} className="border-b border-slate-100 last:border-0">
+                          <td className="px-4 py-3">{new Date(lot.date).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-right">{lot.quantity}</td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(lot.pricePerUnit)}</td>
+                          <td className="px-4 py-3 text-right font-medium">{formatCurrency(lot.totalAmount)}</td>
+                        </tr>
+                      ))}
+                      {(!investments.find(i => i.id === editingId)?.purchases || investments.find(i => i.id === editingId)?.purchases?.length === 0) && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-4 text-center text-slate-400 italic">No purchase history found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ReceiptText, Sparkles, Wallet, TrendingUp, Eye, EyeOff } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, Sparkles, Wallet, TrendingUp, Eye, EyeOff, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useBalance } from '../context/BalanceContext';
 
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/transactions', label: 'Transactions', icon: ReceiptText },
   { path: '/investments', label: 'Investments', icon: TrendingUp },
+  { path: '/report', label: 'Laporan', icon: FileText },
   { path: '/advisor', label: 'AI Advisor', icon: Sparkles },
 ];
 
