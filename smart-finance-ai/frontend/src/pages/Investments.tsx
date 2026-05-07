@@ -47,7 +47,7 @@ export default function Investments() {
     category: '',
     quantity: '1',
     unitType: 'Lembar',
-    investedAmount: '',
+    buyPricePerUnit: '',
     lastPricePerUnit: '',
     dividends: '',
     date: new Date().toISOString().split('T')[0]
@@ -101,7 +101,7 @@ export default function Investments() {
       category: inv.category,
       quantity: (inv.quantity || 1).toString(),
       unitType: inv.unitType || 'Lembar',
-      investedAmount: inv.investedAmount.toString(),
+      buyPricePerUnit: (inv.investedAmount / (inv.quantity || 1)).toString(),
       lastPricePerUnit: (inv.lastPricePerUnit || 0).toString(),
       dividends: (inv.dividends || 0).toString(),
       date: new Date(inv.date).toISOString().split('T')[0]
@@ -158,9 +158,11 @@ export default function Investments() {
     try {
       const qty = parseFloat(formData.quantity || '1');
       const price = parseFloat(formData.lastPricePerUnit || '0');
+      const buyPrice = parseFloat(formData.buyPricePerUnit || '0');
 
       const payload = {
         ...formData,
+        investedAmount: (qty * buyPrice).toString(),
         currentValue: (qty * price).toString(),
       };
       if (editingId) {
@@ -170,7 +172,7 @@ export default function Investments() {
       }
       setIsModalOpen(false);
       setEditingId(null);
-      setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', investedAmount: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] });
+      setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] });
       fetchInvestments();
     } catch (error) {
       console.error('Failed to save investment');
@@ -239,7 +241,7 @@ export default function Investments() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Investments</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage and track your investment portfolio.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', investedAmount: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditingId(null); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={20} />
           <span>Add New</span>
         </button>
@@ -441,8 +443,13 @@ export default function Investments() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Invested Amount (Modal Awal)</label>
-                    <input required type="number" value={formData.investedAmount} onChange={(e) => setFormData({...formData, investedAmount: e.target.value})} className="glass-input w-full" placeholder="0" />
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Average Buy Price (Per Unit)</label>
+                    <input required type="number" step="any" value={formData.buyPricePerUnit} onChange={(e) => setFormData({...formData, buyPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
+                    {formData.quantity && formData.buyPricePerUnit && (
+                      <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                        Total Invested: {formatCurrency(parseFloat(formData.quantity || '0') * parseFloat(formData.buyPricePerUnit || '0'))}
+                      </p>
+                    )}
                   </div>
                   
                   <div>
