@@ -12,9 +12,10 @@ export default defineConfig({
     allowedHosts: true,
     host: true,
     proxy: {
-      '/api': {
+      '/_/backend/api': {
         target: 'http://127.0.0.1:3000',
-        changeOrigin: true
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/_\/backend/, '')
       }
     }
   }

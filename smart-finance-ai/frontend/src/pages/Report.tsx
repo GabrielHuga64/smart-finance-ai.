@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL || '/_/backend/api';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 interface MonthlyReport {

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Plus, Trash2, Edit2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useBalance } from '../context/BalanceContext';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL || '/_/backend/api';
 
 interface Transaction {
   id: string;

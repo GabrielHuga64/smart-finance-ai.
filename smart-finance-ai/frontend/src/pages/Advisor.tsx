@@ -3,7 +3,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Sparkles, Loader2, MessageSquareText } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL || '/_/backend/api';
 
 export default function Advisor() {
   const [analysis, setAnalysis] = useState('');

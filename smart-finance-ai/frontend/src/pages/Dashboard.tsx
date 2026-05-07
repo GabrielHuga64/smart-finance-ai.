@@ -6,7 +6,7 @@ import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis
 import { useBalance } from '../context/BalanceContext';
 import Mascot from '../components/Mascot';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL || '/_/backend/api';
 const COLORS = ['#38bdf8', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899'];
 
 interface Transaction {
