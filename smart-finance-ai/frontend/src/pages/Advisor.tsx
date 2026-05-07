@@ -41,11 +41,11 @@ export default function Advisor() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto h-full flex flex-col">
       <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+        <h1 className="text-3xl font-bold flex items-center gap-3 text-slate-800 dark:text-slate-100">
           <Sparkles className="text-emerald-500" />
           AI Financial Advisor
         </h1>
-        <p className="text-slate-400 mt-2">
+        <p className="text-slate-500 dark:text-slate-400 mt-2">
           Get personalized financial advice, cashflow evaluation, and investment suggestions powered by Google Gemini 2.5 Flash.
         </p>
       </div>
@@ -56,12 +56,12 @@ export default function Advisor() {
         
         {!analysis && !loading && !error && (
           <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 z-10">
-            <div className="w-20 h-20 bg-slate-800/80 rounded-full flex items-center justify-center shadow-xl border border-slate-700/50">
+            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800/80 rounded-full flex items-center justify-center shadow-xl border border-slate-200 dark:border-slate-700/50">
               <MessageSquareText size={32} className="text-emerald-500" />
             </div>
             <div>
-              <h2 className="text-2xl font-semibold mb-2">Ready for your analysis?</h2>
-              <p className="text-slate-400 max-w-md mx-auto">
+              <h2 className="text-2xl font-semibold mb-2 text-slate-800 dark:text-slate-100">Ready for your analysis?</h2>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 I will analyze all your recent transactions, evaluate your cashflow health, and recommend investment strategies based on current market trends.
               </p>
             </div>
@@ -78,7 +78,7 @@ export default function Advisor() {
             <p className="text-emerald-400 font-medium animate-pulse text-lg">
               Analyzing your financial data...
             </p>
-            <p className="text-slate-400 text-sm">Gemini is evaluating your cashflow and fetching market trends.</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">Gemini is evaluating your cashflow and fetching market trends.</p>
           </div>
         )}
 
@@ -98,17 +98,17 @@ export default function Advisor() {
             animate={{ opacity: 1, y: 0 }}
             className="flex-1 overflow-y-auto pr-4 custom-scrollbar z-10"
           >
-            <div className="bg-slate-900/60 border border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-inner">
-              <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-700/50">
+            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-inner">
+              <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-200 dark:border-slate-700/50">
                 <div className="p-2 bg-emerald-500/20 rounded-lg">
-                  <Sparkles className="text-emerald-400" size={24} />
+                  <Sparkles className="text-emerald-500 dark:text-emerald-400" size={24} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-slate-200">Gemini Report</h3>
-                  <p className="text-xs text-slate-400">Personalized Financial Analysis</p>
+                  <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200">Gemini Report</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Personalized Financial Analysis</p>
                 </div>
               </div>
-              <div className="text-slate-200">
+              <div className="text-slate-700 dark:text-slate-200">
                 {formatText(analysis)}
               </div>
             </div>

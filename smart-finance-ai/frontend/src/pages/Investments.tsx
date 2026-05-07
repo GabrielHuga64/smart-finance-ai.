@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { useBalance } from '../context/BalanceContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://aplikasikeuangan-lemon.vercel.app/api';
+const COLORS = ['#38bdf8', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899'];
 
 interface InvestmentPurchase {
   id: string;
@@ -35,6 +37,10 @@ export default function Investments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isGeneratingPrice, setIsGeneratingPrice] = useState(false);
+  const [editMode, setEditMode] = useState<'global' | 'lots'>('global');
+  const [currentLotIndex, setCurrentLotIndex] = useState(0);
+  const [lotFormData, setLotFormData] = useState({ quantity: '1', pricePerUnit: '0', date: '' });
+  const [lotEditingId, setLotEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -64,6 +70,31 @@ export default function Investments() {
 
   const formatCurrency = formatCurrencyMasked;
 
+  // 1. Investment Data (Donut - Global)
+  const totalInvestment = investments.reduce((sum, inv) => sum + inv.currentValue, 0) || 1;
+  const investmentData = investments.reduce<{name: string; value: number}[]>((acc, curr) => {
+    const existing = acc.find(item => item.name === curr.category);
+    if (existing) existing.value += curr.currentValue;
+    else acc.push({ name: curr.category, value: curr.currentValue });
+    return acc;
+  }, [])
+  .map(item => ({ ...item, percentage: ((item.value / totalInvestment) * 100).toFixed(1) }));
+
+  // 2. Investment Data (Sub-Categories)
+  const investmentCategories = [...new Set(investments.map(i => i.category))];
+  const subCategoryData: Record<string, {name: string; value: number; percentage: string}[]> = {};
+  
+  investmentCategories.forEach(category => {
+    const itemsInCategory = investments.filter(i => i.category === category);
+    const totalInCategory = itemsInCategory.reduce((sum, i) => sum + i.currentValue, 0) || 1;
+    
+    subCategoryData[category] = itemsInCategory.map(item => ({
+      name: item.name || 'Unknown',
+      value: item.currentValue,
+      percentage: ((item.currentValue / totalInCategory) * 100).toFixed(1)
+    }));
+  });
+
   const handleEdit = (inv: Investment) => {
     setFormData({
       name: inv.name,
@@ -76,7 +107,50 @@ export default function Investments() {
       date: new Date(inv.date).toISOString().split('T')[0]
     });
     setEditingId(inv.id);
+    if (inv.purchases && inv.purchases.length > 0) {
+      setEditMode('lots');
+      setCurrentLotIndex(0);
+      const lot = inv.purchases[0];
+      setLotFormData({
+        quantity: lot.quantity.toString(),
+        pricePerUnit: lot.pricePerUnit.toString(),
+        date: new Date(lot.date).toISOString().split('T')[0]
+      });
+      setLotEditingId(lot.id);
+    } else {
+      setEditMode('global');
+    }
     setIsModalOpen(true);
+  };
+
+  const handleLotChange = (index: number) => {
+    const inv = investments.find(i => i.id === editingId);
+    if (inv && inv.purchases && inv.purchases[index]) {
+      setCurrentLotIndex(index);
+      const lot = inv.purchases[index];
+      setLotFormData({
+        quantity: lot.quantity.toString(),
+        pricePerUnit: lot.pricePerUnit.toString(),
+        date: new Date(lot.date).toISOString().split('T')[0]
+      });
+      setLotEditingId(lot.id);
+    }
+  };
+
+  const handleLotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lotEditingId) return;
+    try {
+      await axios.put(`${API_URL}/investment-purchases/${lotEditingId}`, lotFormData);
+      await fetchInvestments();
+      alert('Lot updated successfully!');
+      // Update form data to reflect new averages
+      const updatedInv = investments.find(i => i.id === editingId);
+      if (updatedInv) handleEdit(updatedInv); // Refreshes the modal view
+    } catch (error) {
+      console.error('Failed to update lot', error);
+      alert('Failed to update lot');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,6 +184,20 @@ export default function Investments() {
       fetchInvestments();
     } catch (error) {
       console.error('Failed to delete');
+    }
+  };
+
+  const handleLotDelete = async (lotId: string) => {
+    if (!confirm('Are you sure you want to delete this purchase lot?')) return;
+    try {
+      await axios.delete(`${API_URL}/investment-purchases/${lotId}`);
+      await fetchInvestments();
+      alert('Lot deleted successfully!');
+      setIsModalOpen(false);
+      setEditingId(null);
+    } catch (error) {
+      console.error('Failed to delete lot', error);
+      alert('Failed to delete lot');
     }
   };
 
@@ -148,8 +236,8 @@ export default function Investments() {
     <div className="space-y-6 pb-20 md:pb-0">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Investments</h1>
-          <p className="text-slate-500 mt-1">Manage and track your investment portfolio.</p>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Investments</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage and track your investment portfolio.</p>
         </div>
         <button onClick={() => { setEditingId(null); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', investedAmount: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={20} />
@@ -158,8 +246,8 @@ export default function Investments() {
       </div>
 
       <div className="glass-panel overflow-x-auto">
-        <table className="w-full text-left text-sm text-slate-600">
-          <thead className="bg-slate-50 text-slate-500 uppercase border-b border-slate-200">
+        <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+          <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
             <tr>
               <th className="px-6 py-4">Name</th>
               <th className="px-6 py-4">Category</th>
@@ -176,8 +264,8 @@ export default function Investments() {
               const ret = (inv.currentValue - inv.investedAmount) + (inv.dividends || 0);
               const isPositive = ret >= 0;
               return (
-                <tr key={inv.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-800">
+                <tr key={inv.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
                     <div className="flex items-center gap-3">
                       <div className={`p-1.5 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
                         {isPositive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
@@ -186,20 +274,20 @@ export default function Investments() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 border border-slate-200 text-slate-600">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                       {inv.category}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right text-slate-600">
+                  <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-300">
                     {inv.quantity} {inv.unitType}
                   </td>
-                  <td className="px-6 py-4 text-right text-slate-600">
+                  <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-300">
                     {formatCurrency(inv.averagePrice || 0)}
                   </td>
-                  <td className="px-6 py-4 text-right text-slate-600">
+                  <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-300">
                     {formatCurrency(inv.investedAmount)}
                   </td>
-                  <td className="px-6 py-4 text-right font-medium text-slate-800">
+                  <td className="px-6 py-4 text-right font-medium text-slate-800 dark:text-slate-200">
                     {formatCurrency(inv.currentValue)}
                   </td>
                   <td className={`px-6 py-4 text-right font-medium ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -218,7 +306,7 @@ export default function Investments() {
             })}
             {investments.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
+                <td colSpan={8} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                   No investments found. Click "Add New" to create one.
                 </td>
               </tr>
@@ -227,110 +315,250 @@ export default function Investments() {
         </table>
       </div>
 
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        {/* 1. Investment Allocation */}
+        <div className="glass-panel p-6">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6 border-b border-slate-100 dark:border-slate-700 pb-2">Investment Allocation</h3>
+          <div className="h-[250px] flex items-center justify-center">
+            {investmentData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={investmentData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {investmentData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: any) => formatCurrency(value)} contentStyle={{ borderRadius: '8px', backgroundColor: 'var(--color-bg)', color: 'var(--color-text-main)', border: 'none' }} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <div className="text-slate-400">No investment data</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* Investment Sub-Categories */}
+      {Object.keys(subCategoryData).length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 px-1">Investment Sub-Categories</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {Object.entries(subCategoryData).map(([category, data], idx) => (
+              <div key={category} className="glass-panel p-6">
+                <h4 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">{category}</h4>
+                <div className="h-[200px] flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {data.map((_entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[(index + idx * 2) % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: any) => formatCurrency(value)} contentStyle={{ borderRadius: '8px', backgroundColor: 'var(--color-bg)', color: 'var(--color-text-main)', border: 'none' }} />
+                      <Legend verticalAlign="bottom" height={30} wrapperStyle={{ fontSize: '11px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-panel w-full max-w-md p-6 animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
-            <h2 className="text-2xl font-bold mb-6 text-slate-800">{editingId ? 'Edit Investment' : 'New Investment'}</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Name</label>
-                <input required type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="glass-input w-full" placeholder="e.g. BBCA, Emas Antam, BTC" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
-                <select required value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full bg-white">
-                  <option value="" disabled>Select Category</option>
-                  <option value="Saham">Saham</option>
-                  <option value="Reksadana">Reksadana</option>
-                  <option value="Kripto">Kripto</option>
-                  <option value="Emas">Emas</option>
-                  <option value="Lainnya">Lainnya</option>
-                </select>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Quantity</label>
-                  <input required type="number" step="any" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: e.target.value})} className="glass-input w-full" placeholder="1" />
-                </div>
-                <div className="w-1/3">
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Unit</label>
-                  <select required value={formData.unitType} onChange={(e) => setFormData({...formData, unitType: e.target.value})} className="glass-input w-full bg-white">
-                    <option value="Lembar">Lembar</option>
-                    <option value="Lot">Lot</option>
-                    <option value="Gram">Gram</option>
-                    <option value="Unit">Unit</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Total Invested Amount (Modal Awal)</label>
-                <input required type="number" value={formData.investedAmount} onChange={(e) => setFormData({...formData, investedAmount: e.target.value})} className="glass-input w-full" placeholder="0" />
-              </div>
-              
-              <div>
-                <div className="flex justify-between items-end mb-1">
-                  <label className="block text-sm font-medium text-slate-600">Current Price (Per Unit)</label>
-                  <button type="button" onClick={handleGeneratePrice} disabled={isGeneratingPrice} className="text-xs flex items-center gap-1 text-violet-600 bg-violet-50 hover:bg-violet-100 px-2 py-1 rounded-md transition-colors border border-violet-200 disabled:opacity-50">
-                    <Sparkles size={12} />
-                    {isGeneratingPrice ? 'Fetching...' : 'Auto-fill AI'}
-                  </button>
-                </div>
-                <input required type="number" value={formData.lastPricePerUnit} onChange={(e) => setFormData({...formData, lastPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="Manual Input or Use AI" />
-                <p className="text-xs text-slate-400 mt-1">Total Valuation will be calculated automatically.</p>
-              </div>
-
-              {formData.category === 'Saham' && (
-                <div className="animate-in slide-in-from-top-2 duration-300">
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Dividends Received (Optional)</label>
-                  <input type="number" value={formData.dividends} onChange={(e) => setFormData({...formData, dividends: e.target.value})} className="glass-input w-full border-sky-200 bg-sky-50/50" placeholder="0" />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Date</label>
-                <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="glass-input w-full" />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-200">
-                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="btn-secondary px-4 py-2">Cancel</button>
-                <button type="submit" className="btn-primary px-4 py-2">{editingId ? 'Update' : 'Save'}</button>
-              </div>
-            </form>
+            <h2 className="text-2xl font-bold mb-4 text-slate-800 dark:text-slate-100">{editingId ? 'Edit Investment' : 'New Investment'}</h2>
             
-            {editingId && (
-              <div className="mt-8 border-t border-slate-200 pt-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Purchase History (Lots)</h3>
-                <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
-                  <table className="w-full text-left text-xs text-slate-600">
-                    <thead className="bg-slate-100 border-b border-slate-200 uppercase">
-                      <tr>
-                        <th className="px-4 py-2">Date</th>
-                        <th className="px-4 py-2 text-right">Qty</th>
-                        <th className="px-4 py-2 text-right">Price/Unit</th>
-                        <th className="px-4 py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {investments.find(i => i.id === editingId)?.purchases?.map((lot) => (
-                        <tr key={lot.id} className="border-b border-slate-100 last:border-0">
-                          <td className="px-4 py-3">{new Date(lot.date).toLocaleDateString()}</td>
-                          <td className="px-4 py-3 text-right">{lot.quantity}</td>
-                          <td className="px-4 py-3 text-right">{formatCurrency(lot.pricePerUnit)}</td>
-                          <td className="px-4 py-3 text-right font-medium">{formatCurrency(lot.totalAmount)}</td>
-                        </tr>
-                      ))}
-                      {(!investments.find(i => i.id === editingId)?.purchases || investments.find(i => i.id === editingId)?.purchases?.length === 0) && (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-4 text-center text-slate-400 italic">No purchase history found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+            {editingId && investments.find(i => i.id === editingId)?.purchases && investments.find(i => i.id === editingId)!.purchases!.length > 0 ? (
+              <div className="flex gap-2 mb-6 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                <button 
+                  onClick={() => setEditMode('global')}
+                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'global' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                >
+                  Edit Global
+                </button>
+                <button 
+                  onClick={() => setEditMode('lots')}
+                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'lots' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                >
+                  Edit per Lot
+                </button>
+              </div>
+            ) : null}
+
+            {editMode === 'global' ? (
+              <>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+                    <input required type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="glass-input w-full" placeholder="e.g. BBCA, Emas Antam, BTC" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
+                    <select required value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900">
+                      <option value="" disabled>Select Category</option>
+                      <option value="Saham">Saham</option>
+                      <option value="Reksadana">Reksadana</option>
+                      <option value="Kripto">Kripto</option>
+                      <option value="Emas">Emas</option>
+                      <option value="Lainnya">Lainnya</option>
+                    </select>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Quantity</label>
+                      <input required type="number" step="any" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: e.target.value})} className="glass-input w-full" placeholder="1" />
+                    </div>
+                    <div className="w-1/3">
+                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Unit</label>
+                      <select required value={formData.unitType} onChange={(e) => setFormData({...formData, unitType: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900">
+                        <option value="Lembar">Lembar</option>
+                        <option value="Lot">Lot</option>
+                        <option value="Gram">Gram</option>
+                        <option value="Unit">Unit</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Invested Amount (Modal Awal)</label>
+                    <input required type="number" value={formData.investedAmount} onChange={(e) => setFormData({...formData, investedAmount: e.target.value})} className="glass-input w-full" placeholder="0" />
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between items-end mb-1">
+                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Current Price (Per Unit)</label>
+                      <button type="button" onClick={handleGeneratePrice} disabled={isGeneratingPrice} className="text-xs flex items-center gap-1 text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 px-2 py-1 rounded-md transition-colors border border-violet-200 dark:border-violet-800 disabled:opacity-50">
+                        <Sparkles size={12} />
+                        {isGeneratingPrice ? 'Fetching...' : 'Auto-fill AI'}
+                      </button>
+                    </div>
+                    <input required type="number" value={formData.lastPricePerUnit} onChange={(e) => setFormData({...formData, lastPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="Manual Input or Use AI" />
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Total Valuation will be calculated automatically.</p>
+                  </div>
+
+                  {formData.category === 'Saham' && (
+                    <div className="animate-in slide-in-from-top-2 duration-300">
+                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Dividends Received (Optional)</label>
+                      <input type="number" value={formData.dividends} onChange={(e) => setFormData({...formData, dividends: e.target.value})} className="glass-input w-full border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/20" placeholder="0" />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Date</label>
+                    <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="glass-input w-full" />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="btn-secondary px-4 py-2">Cancel</button>
+                    <button type="submit" className="btn-primary px-4 py-2">{editingId ? 'Update' : 'Save'}</button>
+                  </div>
+                </form>
+                
+                {editingId && (
+                  <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Purchase History (Lots)</h3>
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                      <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                        <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 uppercase">
+                          <tr>
+                            <th className="px-4 py-2">Date</th>
+                            <th className="px-4 py-2 text-right">Qty</th>
+                            <th className="px-4 py-2 text-right">Price/Unit</th>
+                            <th className="px-4 py-2 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {investments.find(i => i.id === editingId)?.purchases?.map((lot) => (
+                            <tr key={lot.id} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+                              <td className="px-4 py-3">{new Date(lot.date).toLocaleDateString()}</td>
+                              <td className="px-4 py-3 text-right">{lot.quantity}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(lot.pricePerUnit)}</td>
+                              <td className="px-4 py-3 text-right font-medium">{formatCurrency(lot.totalAmount)}</td>
+                            </tr>
+                          ))}
+                          {(!investments.find(i => i.id === editingId)?.purchases || investments.find(i => i.id === editingId)?.purchases?.length === 0) && (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-4 text-center text-slate-400 italic">No purchase history found.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="animate-in fade-in duration-300">
+                <div className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-xl mb-6 border border-sky-100 dark:border-sky-800">
+                   <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{investments.find(i => i.id === editingId)?.name}</h3>
+                   <div className="flex justify-between items-center mt-2">
+                     <p className="text-sm text-slate-500 dark:text-slate-400">Total Qty: <span className="font-medium text-slate-700 dark:text-slate-200">{investments.find(i => i.id === editingId)?.quantity}</span></p>
+                     <p className="text-sm text-slate-500 dark:text-slate-400">Avg Price: <span className="font-medium text-slate-700 dark:text-slate-200">{formatCurrency(investments.find(i => i.id === editingId)?.averagePrice || 0)}</span></p>
+                   </div>
                 </div>
+                
+                <div className="flex items-center justify-between mb-6 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                   <button onClick={() => handleLotChange(currentLotIndex - 1)} disabled={currentLotIndex === 0} className="w-8 h-8 flex items-center justify-center rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm">&lt;</button>
+                   <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                     Purchase {investments.find(i => i.id === editingId)?.purchases?.length! - currentLotIndex} of {investments.find(i => i.id === editingId)?.purchases?.length}
+                   </span>
+                   <button onClick={() => handleLotChange(currentLotIndex + 1)} disabled={currentLotIndex === investments.find(i => i.id === editingId)?.purchases?.length! - 1} className="w-8 h-8 flex items-center justify-center rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm">&gt;</button>
+                </div>
+
+                <form onSubmit={handleLotSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Quantity</label>
+                    <input required type="number" step="any" value={lotFormData.quantity} onChange={(e) => setLotFormData({...lotFormData, quantity: e.target.value})} className="glass-input w-full" placeholder="1" />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Price Per Unit</label>
+                    <input required type="number" value={lotFormData.pricePerUnit} onChange={(e) => setLotFormData({...lotFormData, pricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Validated</label>
+                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium">
+                      {formatCurrency((parseFloat(lotFormData.quantity || '0') * parseFloat(lotFormData.pricePerUnit || '0')))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Date</label>
+                    <input required type="date" value={lotFormData.date} onChange={(e) => setLotFormData({...lotFormData, date: e.target.value})} className="glass-input w-full" />
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4 mt-6 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onClick={() => handleLotDelete(lotEditingId!)} className="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 p-2 transition-colors">
+                      <Trash2 size={20} />
+                    </button>
+                    <div className="flex gap-3">
+                      <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="btn-secondary px-4 py-2">Close</button>
+                      <button type="submit" className="btn-primary px-4 py-2">Save Lot</button>
+                    </div>
+                  </div>
+                </form>
               </div>
             )}
           </div>

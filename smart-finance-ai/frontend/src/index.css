@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-primary: #38bdf8;
@@ -14,17 +15,17 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-700 font-sans antialiased;
+    @apply bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-sans antialiased transition-colors duration-200;
   }
 }
 
 /* Dashboard Panel Utilities */
 .glass-panel {
-  @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+  @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm transition-colors;
 }
 
 .glass-input {
-  @apply bg-white border border-slate-300 text-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all;
+  @apply bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 dark:focus:border-sky-500 transition-all;
 }
 
 .btn-primary {
@@ -32,7 +33,7 @@
 }
 
 .btn-secondary {
-  @apply bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2.5 px-6 rounded-lg shadow-sm transition-all active:scale-95;
+  @apply bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 font-medium py-2.5 px-6 rounded-lg shadow-sm transition-all active:scale-95;
 }
 
 /* Custom Scrollbar for a clean look */

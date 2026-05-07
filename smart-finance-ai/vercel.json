@@ -1,0 +1,19 @@
+{
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": "frontend",
+      "routePrefix": "/",
+      "framework": "vite"
+    },
+    "backend": {
+      "entrypoint": "backend",
+      "routePrefix": "/_/backend"
+    }
+  },
+  "crons": [
+    {
+      "path": "/_/backend/api/cron/monthly-report",
+      "schedule": "0 23 28 * *"
+    }
+  ]
+}

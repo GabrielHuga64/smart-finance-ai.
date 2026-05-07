@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('./generated/client');
 const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
@@ -202,6 +202,103 @@ app.delete('/api/investments/:id', async (req, res) => {
   }
 });
 
+app.put('/api/investment-purchases/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quantity, pricePerUnit, date } = req.body;
+    
+    // Update the purchase
+    const updatedPurchase = await prisma.investmentPurchase.update({
+      where: { id },
+      data: {
+        quantity: parseFloat(quantity),
+        pricePerUnit: parseFloat(pricePerUnit),
+        totalAmount: parseFloat(quantity) * parseFloat(pricePerUnit),
+        date: date ? new Date(date) : new Date(),
+      },
+    });
+
+    // Recalculate parent investment
+    const allPurchases = await prisma.investmentPurchase.findMany({
+      where: { investmentId: updatedPurchase.investmentId }
+    });
+
+    let totalQty = 0;
+    let totalInvested = 0;
+
+    allPurchases.forEach(p => {
+      totalQty += p.quantity;
+      totalInvested += p.totalAmount;
+    });
+
+    const averagePrice = totalQty > 0 ? totalInvested / totalQty : 0;
+
+    // Get parent to calculate current value based on last price
+    const parent = await prisma.investment.findUnique({ where: { id: updatedPurchase.investmentId } });
+    const currentValue = totalQty * (parent.lastPricePerUnit || 0);
+
+    const updatedParent = await prisma.investment.update({
+      where: { id: updatedPurchase.investmentId },
+      data: {
+        quantity: totalQty,
+        investedAmount: totalInvested,
+        averagePrice: averagePrice,
+        currentValue: currentValue
+      }
+    });
+
+    res.json(updatedPurchase);
+  } catch (error) {
+    console.error("Failed to update purchase:", error);
+    res.status(500).json({ error: 'Failed to update investment purchase' });
+  }
+});
+
+app.delete('/api/investment-purchases/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const purchase = await prisma.investmentPurchase.findUnique({ where: { id } });
+    if (!purchase) {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    await prisma.investmentPurchase.delete({ where: { id } });
+
+    const allPurchases = await prisma.investmentPurchase.findMany({
+      where: { investmentId: purchase.investmentId }
+    });
+
+    let totalQty = 0;
+    let totalInvested = 0;
+
+    allPurchases.forEach(p => {
+      totalQty += p.quantity;
+      totalInvested += p.totalAmount;
+    });
+
+    const averagePrice = totalQty > 0 ? totalInvested / totalQty : 0;
+
+    const parent = await prisma.investment.findUnique({ where: { id: purchase.investmentId } });
+    const currentValue = totalQty * (parent.lastPricePerUnit || 0);
+
+    const updatedParent = await prisma.investment.update({
+      where: { id: purchase.investmentId },
+      data: {
+        quantity: totalQty,
+        investedAmount: totalInvested,
+        averagePrice: averagePrice,
+        currentValue: currentValue
+      }
+    });
+
+    res.json({ success: true, updatedParent });
+  } catch (error) {
+    console.error("Failed to delete purchase:", error);
+    res.status(500).json({ error: 'Failed to delete investment purchase' });
+  }
+});
+
 // --- SUMMARY ---
 
 app.get('/api/summary', async (req, res) => {
@@ -291,6 +388,33 @@ app.post('/api/monthly-reports', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to save monthly report' });
+  }
+});
+
+app.put('/api/monthly-reports/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { aiAnalysis } = req.body;
+    
+    const updated = await prisma.monthlyReport.update({
+      where: { id },
+      data: { aiAnalysis }
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
+app.delete('/api/monthly-reports/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.monthlyReport.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete report' });
   }
 });
 
@@ -434,6 +558,124 @@ app.post('/api/ai/analyze', async (req, res) => {
   } catch (error) {
     console.error("AI Error:", error);
     res.status(500).json({ error: 'Failed to generate AI analysis' });
+  }
+});
+
+// --- CRON JOBS ---
+
+app.get('/api/cron/monthly-report', async (req, res) => {
+  // Optional: check CRON_SECRET if configured in Vercel
+  const authHeader = req.headers.authorization;
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const transactions = await prisma.transaction.findMany({ orderBy: { date: 'desc' } });
+    const investments = await prisma.investment.findMany({ orderBy: { date: 'desc' } });
+    
+    let totalIncome = 0;
+    let totalExpense = 0;
+    const categoryBreakdown = {};
+
+    transactions.forEach((tx) => {
+      if (tx.type === 'INCOME') totalIncome += tx.amount;
+      else if (tx.type === 'EXPENSE') {
+        totalExpense += tx.amount;
+        categoryBreakdown[tx.category] = (categoryBreakdown[tx.category] || 0) + tx.amount;
+      }
+    });
+
+    const investmentBreakdown = {};
+    let totalInvested = 0;
+    let totalCurrentValue = 0;
+    let totalDividends = 0;
+
+    investments.forEach((inv) => {
+      totalInvested += inv.investedAmount;
+      totalCurrentValue += inv.currentValue;
+      totalDividends += (inv.dividends || 0);
+      if (!investmentBreakdown[inv.category]) {
+        investmentBreakdown[inv.category] = { invested: 0, current: 0 };
+      }
+      investmentBreakdown[inv.category].invested += inv.investedAmount;
+      investmentBreakdown[inv.category].current += inv.currentValue;
+    });
+
+    const balance = totalIncome - totalExpense;
+    const gabunganAset = totalCurrentValue + balance + totalDividends;
+
+    const prompt = `
+      Anda adalah penasihat keuangan pribadi kelas dunia yang cerdas, profesional, dan tajam dalam memberikan saran.
+      Berikut adalah ringkasan keuangan saya saat ini:
+      
+      [ARUS KAS]
+      - Total Pemasukan: Rp ${totalIncome.toLocaleString('id-ID')}
+      - Total Pengeluaran: Rp ${totalExpense.toLocaleString('id-ID')}
+      - Sisa Kas (Saldo): Rp ${(totalIncome - totalExpense).toLocaleString('id-ID')}
+      
+      Rincian pengeluaran berdasarkan kategori:
+      ${Object.entries(categoryBreakdown).map(([cat, amount]) => `- ${cat}: Rp ${amount.toLocaleString('id-ID')}`).join('\n')}
+
+      [PORTOFOLIO INVESTASI]
+      - Total Modal Diinvestasikan: Rp ${totalInvested.toLocaleString('id-ID')}
+      - Nilai Aset Investasi Saat Ini: Rp ${totalCurrentValue.toLocaleString('id-ID')}
+      - Return / Keuntungan: Rp ${(totalCurrentValue - totalInvested).toLocaleString('id-ID')}
+
+      Rincian investasi berdasarkan kelas aset:
+      ${Object.entries(investmentBreakdown).map(([cat, val]) => `- ${cat}: Modal Rp ${val.invested.toLocaleString('id-ID')} -> Nilai Saat Ini Rp ${val.current.toLocaleString('id-ID')}`).join('\n')}
+
+      Berikan saya:
+      1. Evaluasi arus kas saat ini (apakah sehat/perlu perbaikan) dan strategi menekan pengeluaran.
+      2. Evaluasi komposisi portofolio aset saat ini (diversifikasi, manajemen risiko).
+      3. Saran investasi ke depan dan peluang pasar terkini berdasarkan profil kelas aset di atas (gunakan analisis data berita dan tren terkini).
+      
+      Gunakan bahasa yang profesional namun ringkas dan mudah dimengerti, dengan format yang rapi (menggunakan bullet points, bold text). Hindari pengantar panjang lebar.
+    `;
+
+    let response;
+    try {
+      response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: prompt,
+      });
+    } catch (fallbackError) {
+      response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+      });
+    }
+
+    const aiAnalysis = response.text;
+    const monthFormatter = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
+    const currentMonthStr = monthFormatter.format(new Date());
+
+    const existing = await prisma.monthlyReport.findFirst({
+      where: { month: currentMonthStr }
+    });
+
+    if (existing) {
+      await prisma.monthlyReport.update({
+        where: { id: existing.id },
+        data: { totalAssets: gabunganAset, totalIncome, totalExpense, investmentValue: totalCurrentValue, aiAnalysis }
+      });
+    } else {
+      await prisma.monthlyReport.create({
+        data: {
+          month: currentMonthStr,
+          totalAssets: gabunganAset,
+          totalIncome,
+          totalExpense,
+          investmentValue: totalCurrentValue,
+          aiAnalysis
+        }
+      });
+    }
+
+    res.json({ success: true, month: currentMonthStr });
+  } catch (error) {
+    console.error("Cron Job Error:", error);
+    res.status(500).json({ error: 'Failed to generate monthly report cron' });
   }
 });
 

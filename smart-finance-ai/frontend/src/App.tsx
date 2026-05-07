@@ -6,11 +6,13 @@ import Investments from './pages/Investments';
 import Advisor from './pages/Advisor';
 import Report from './pages/Report';
 import { BalanceProvider } from './context/BalanceContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
-    <BalanceProvider>
-      <Router>
+    <ThemeProvider>
+      <BalanceProvider>
+        <Router>
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -22,6 +24,7 @@ function App() {
         </Layout>
       </Router>
     </BalanceProvider>
+    </ThemeProvider>
   );
 }
 

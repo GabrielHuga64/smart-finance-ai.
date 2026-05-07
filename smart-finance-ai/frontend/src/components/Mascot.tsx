@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface MascotProps {
@@ -69,9 +68,9 @@ export default function Mascot({ message, mood = 'neutral' }: MascotProps) {
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ type: "spring", bounce: 0.5 }}
-            className="bg-white px-4 py-3 rounded-2xl rounded-br-none shadow-xl border border-emerald-100 mr-2 mb-10 max-w-[200px] pointer-events-auto"
+            className="bg-white dark:bg-slate-800 px-4 py-3 rounded-2xl rounded-br-none shadow-xl border border-emerald-100 dark:border-emerald-900/50 mr-2 mb-10 max-w-[200px] pointer-events-auto"
           >
-            <p className="text-sm font-medium text-slate-700 leading-snug">{message}</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-snug">{message}</p>
           </motion.div>
         )}
       </AnimatePresence>

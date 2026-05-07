@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ReceiptText, Sparkles, Wallet, TrendingUp, Eye, EyeOff, FileText } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, Sparkles, Wallet, TrendingUp, Eye, EyeOff, FileText, Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useBalance } from '../context/BalanceContext';
+import { useTheme } from '../context/ThemeContext';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,23 +15,29 @@ const NAV_ITEMS = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { isBalanceHidden, toggleBalance } = useBalance();
+  const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-200 overflow-hidden">
       {/* Sidebar for Desktop/Tablet */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex z-10">
+      <aside className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-col hidden md:flex z-10 transition-colors">
         <div className="p-6 flex items-center justify-between border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="bg-sky-100 p-2 rounded-xl text-sky-600">
+            <div className="bg-sky-100 dark:bg-sky-900/40 p-2 rounded-xl text-sky-600 dark:text-sky-400">
               <Wallet size={24} />
             </div>
-            <h1 className="font-bold tracking-tight text-xl text-slate-800">
+            <h1 className="font-bold tracking-tight text-xl text-slate-800 dark:text-slate-100">
               FineFinance
             </h1>
           </div>
-          <button onClick={toggleBalance} className="text-slate-400 hover:text-slate-600 transition-colors">
-            {isBalanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleTheme} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button onClick={toggleBalance} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+              {isBalanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-2">
@@ -43,13 +50,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {isActive && (
                   <motion.div
                     layoutId="active-nav"
-                    className="absolute inset-0 bg-sky-50 rounded-xl"
+                    className="absolute inset-0 bg-sky-50 dark:bg-sky-900/20 rounded-xl"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.2 }}
                   />
                 )}
-                <div className={`relative px-4 py-3 flex items-center gap-3 rounded-xl transition-colors ${isActive ? 'text-sky-600' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'}`}>
+                <div className={`relative px-4 py-3 flex items-center gap-3 rounded-xl transition-colors ${isActive ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50/50 dark:hover:bg-slate-700/50'}`}>
                   <Icon size={20} />
                   <span className="font-medium">{item.label}</span>
                 </div>
@@ -59,8 +66,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
+      {/* Mobile Top Navigation Additions (Theme Toggle) */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 z-50 flex items-center justify-between px-4">
+        <h1 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+          <Wallet size={20} className="text-sky-500" /> FineFinance
+        </h1>
+        <div className="flex items-center gap-4">
+          <button onClick={toggleTheme} className="text-slate-500 dark:text-slate-400">
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button onClick={toggleBalance} className="text-slate-500 dark:text-slate-400">
+            {isBalanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto w-full pb-20 md:pb-0">
+      <main className="flex-1 overflow-y-auto w-full pb-20 md:pb-0 pt-14 md:pt-0">
         <div className="h-full flex flex-col relative max-w-7xl mx-auto w-full">
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
             {children}
@@ -69,7 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center h-16 z-50 px-2 safe-area-pb">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex justify-around items-center h-16 z-50 px-2 safe-area-pb transition-colors">
         {NAV_ITEMS.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
@@ -85,7 +107,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   transition={{ duration: 0.2 }}
                 />
               )}
-              <div className={`flex flex-col items-center ${isActive ? 'text-sky-600' : 'text-slate-400'}`}>
+              <div className={`flex flex-col items-center ${isActive ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400 dark:text-slate-500'}`}>
                 <Icon size={20} className="mb-1" />
                 <span className="text-[10px] font-medium">{item.label}</span>
               </div>
