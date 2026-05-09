@@ -82,6 +82,8 @@ export default function Investments() {
 
   // 2. Investment Data (Sub-Categories)
   const investmentCategories = [...new Set(investments.map(i => i.category))];
+  const standardInvestmentCategories = ["Saham", "Reksadana", "Kripto", "Emas", "Lainnya"];
+  const allInvestmentCategories = [...new Set([...standardInvestmentCategories, ...investmentCategories])].filter(Boolean);
   const subCategoryData: Record<string, {name: string; value: number; percentage: string}[]> = {};
   
   investmentCategories.forEach(category => {
@@ -257,14 +259,21 @@ export default function Investments() {
               <th className="px-6 py-4 text-right">Avg Price</th>
               <th className="px-6 py-4 text-right">Invested</th>
               <th className="px-6 py-4 text-right">Current Value</th>
+              <th className="px-6 py-4 text-right">Capital Gain</th>
+              <th className="px-6 py-4 text-right">Dividend</th>
               <th className="px-6 py-4 text-right">Total Return</th>
               <th className="px-6 py-4 text-center">Action</th>
             </tr>
           </thead>
           <tbody>
             {investments.map((inv) => {
-              const ret = (inv.currentValue - inv.investedAmount) + (inv.dividends || 0);
-              const isPositive = ret >= 0;
+              const capitalGain = inv.currentValue - inv.investedAmount;
+              const dividend = inv.dividends || 0;
+              const totalReturn = capitalGain + dividend;
+              const isPositive = totalReturn >= 0;
+              const isCapitalGainPositive = capitalGain >= 0;
+              const isDividendPositive = dividend > 0;
+
               return (
                 <tr key={inv.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
@@ -292,8 +301,14 @@ export default function Investments() {
                   <td className="px-6 py-4 text-right font-medium text-slate-800 dark:text-slate-200">
                     {formatCurrency(inv.currentValue)}
                   </td>
+                  <td className={`px-6 py-4 text-right font-medium ${isCapitalGainPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {isCapitalGainPositive ? '+' : ''}{formatCurrency(capitalGain)}
+                  </td>
+                  <td className={`px-6 py-4 text-right font-medium ${isDividendPositive ? 'text-sky-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                    {isDividendPositive ? '+' : ''}{formatCurrency(dividend)}
+                  </td>
                   <td className={`px-6 py-4 text-right font-medium ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {isPositive ? '+' : ''}{formatCurrency(ret)}
+                    {isPositive ? '+' : ''}{formatCurrency(totalReturn)}
                   </td>
                   <td className="px-6 py-4 text-center space-x-3">
                     <button onClick={() => handleEdit(inv)} className="text-slate-400 hover:text-sky-500 transition-colors">
@@ -416,14 +431,12 @@ export default function Investments() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
-                    <select required value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900">
-                      <option value="" disabled>Select Category</option>
-                      <option value="Saham">Saham</option>
-                      <option value="Reksadana">Reksadana</option>
-                      <option value="Kripto">Kripto</option>
-                      <option value="Emas">Emas</option>
-                      <option value="Lainnya">Lainnya</option>
-                    </select>
+                    <input required type="text" list="investment-categories" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900" placeholder="e.g. Saham, Properti" />
+                    <datalist id="investment-categories">
+                      {allInvestmentCategories.map(cat => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div className="flex gap-4">

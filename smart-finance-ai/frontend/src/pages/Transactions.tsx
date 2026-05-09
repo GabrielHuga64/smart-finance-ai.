@@ -50,6 +50,7 @@ export default function Transactions() {
   }, []);
 
   const formatCurrency = formatCurrencyMasked;
+  const transactionCategories = [...new Set(transactions.map(tx => tx.category))].filter(Boolean);
 
   const handleEdit = (tx: Transaction) => {
     setFormData({
@@ -210,7 +211,12 @@ export default function Transactions() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
-                <input required type="text" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full" placeholder="e.g. Food, Salary, Investasi" />
+                <input required type="text" list="transaction-categories" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full" placeholder="e.g. Food, Salary, Investasi" />
+                <datalist id="transaction-categories">
+                  {transactionCategories.map(cat => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
               </div>
 
               <div>
@@ -247,13 +253,14 @@ export default function Transactions() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Asset Category</label>
-                    <select required value={formData.investmentCategory} onChange={(e) => setFormData({...formData, investmentCategory: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900">
-                      <option value="Saham">Saham</option>
-                      <option value="Reksadana">Reksadana</option>
-                      <option value="Kripto">Kripto</option>
-                      <option value="Emas">Emas</option>
-                      <option value="Lainnya">Lainnya</option>
-                    </select>
+                    <input required type="text" list="default-investment-categories" value={formData.investmentCategory} onChange={(e) => setFormData({...formData, investmentCategory: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900" placeholder="e.g. Saham, Properti" />
+                    <datalist id="default-investment-categories">
+                      <option value="Saham" />
+                      <option value="Reksadana" />
+                      <option value="Kripto" />
+                      <option value="Emas" />
+                      <option value="Lainnya" />
+                    </datalist>
                   </div>
                   <div className="flex gap-4">
                     <div className="flex-1">
