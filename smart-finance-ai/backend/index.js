@@ -329,6 +329,17 @@ app.post('/api/investment-dividends', async (req, res) => {
       data: { dividends: totalDividends }
     });
 
+    // Automatically record as an INCOME transaction
+    await prisma.transaction.create({
+      data: {
+        amount: parseFloat(amount),
+        type: "INCOME",
+        category: "Dividen",
+        description: `Dividen dari ${updatedParent.name}`,
+        date: date ? new Date(date) : new Date(),
+      }
+    });
+
     res.json(dividend);
   } catch (error) {
     console.error("Failed to add dividend:", error);
