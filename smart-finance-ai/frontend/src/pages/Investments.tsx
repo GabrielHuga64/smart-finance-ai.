@@ -544,8 +544,55 @@ export default function Investments() {
                 </form>
                 
                 {editingId && (
-                  <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Purchase History (Lots)</h3>
+                  <>
+                    <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Return Breakdown</h3>
+                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                          <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 uppercase">
+                            <tr>
+                              <th className="px-4 py-2">Source</th>
+                              <th className="px-4 py-2 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const inv = investments.find(i => i.id === editingId);
+                              const capitalGain = inv ? inv.currentValue - inv.investedAmount : 0;
+                              const dividend = inv ? inv.dividends || 0 : 0;
+                              const totalReturn = capitalGain + dividend;
+                              return (
+                                <>
+                                  <tr className="border-b border-slate-100 dark:border-slate-700/50">
+                                    <td className="px-4 py-3 font-medium">Capital Gain</td>
+                                    <td className={`px-4 py-3 text-right font-medium ${capitalGain >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                      {capitalGain >= 0 ? '+' : ''}{formatCurrency(capitalGain)}
+                                    </td>
+                                  </tr>
+                                  {inv?.category === 'Saham' && (
+                                    <tr className="border-b border-slate-100 dark:border-slate-700/50">
+                                      <td className="px-4 py-3 font-medium">Dividend</td>
+                                      <td className={`px-4 py-3 text-right font-medium ${dividend > 0 ? 'text-sky-500' : 'text-slate-400'}`}>
+                                        {dividend > 0 ? '+' : ''}{formatCurrency(dividend)}
+                                      </td>
+                                    </tr>
+                                  )}
+                                  <tr className="bg-slate-100/50 dark:bg-slate-800/80">
+                                    <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">Total Return</td>
+                                    <td className={`px-4 py-3 text-right font-bold ${totalReturn >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                      {totalReturn >= 0 ? '+' : ''}{formatCurrency(totalReturn)}
+                                    </td>
+                                  </tr>
+                                </>
+                              );
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Purchase History (Lots)</h3>
                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
                       <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
                         <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 uppercase">
@@ -574,7 +621,8 @@ export default function Investments() {
                       </table>
                     </div>
                   </div>
-                )}
+                </>
+              )}
               </>
             ) : editMode === 'lots' ? (
               <div className="animate-in fade-in duration-300">
