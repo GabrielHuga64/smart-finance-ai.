@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Bot, FileText, Loader2, Download, Trash2, Edit2, Check, X, History, Building2 } from 'lucide-react';
 import { useBalance } from '../context/BalanceContext';
 import Mascot from '../components/Mascot';
 import ReactMarkdown from 'react-markdown';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -19,6 +20,19 @@ interface MonthlyReport {
   investmentValue: number;
   aiAnalysis: string;
   createdAt: string;
+}
+
+interface InvestmentDividend {
+  id: string;
+  amount: number;
+  date: string;
+}
+
+interface Investment {
+  id: string;
+  name: string;
+  category: string;
+  dividendRecords?: InvestmentDividend[];
 }
 
 export default function Report() {
@@ -37,8 +51,9 @@ export default function Report() {
   const [mascotMessage, setMascotMessage] = useState('Yuk kita cek laporan keuanganmu!');
 
   // History Tab State
-  const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
+  const [activeTab, setActiveTab] = useState<'current' | 'history' | 'dividends'>('current');
   const [historyReports, setHistoryReports] = useState<MonthlyReport[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editAnalysisText, setEditAnalysisText] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -47,12 +62,14 @@ export default function Report() {
 
   const fetchData = async () => {
     try {
-      const [sumRes, histRes] = await Promise.all([
+      const [sumRes, histRes, invRes] = await Promise.all([
         axios.get(`${API_URL}/summary`),
-        axios.get(`${API_URL}/monthly-reports`)
+        axios.get(`${API_URL}/monthly-reports`),
+        axios.get(`${API_URL}/investments`)
       ]);
       setSummary(sumRes.data);
       setHistoryReports(histRes.data);
+      setInvestments(invRes.data);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -170,6 +187,41 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
 
   if (loading) return <div className="flex h-full items-center justify-center"><div className="animate-pulse text-emerald-500">Memuat Laporan...</div></div>;
 
+  // Process Dividend Data
+  const dividendByYearAndStock: Record<string, Record<string, number>> = {};
+  const allYearsSet = new Set<string>();
+  
+  investments.forEach(inv => {
+    if (inv.dividendRecords && inv.dividendRecords.length > 0) {
+      inv.dividendRecords.forEach(record => {
+        const year = new Date(record.date).getFullYear().toString();
+        allYearsSet.add(year);
+        if (!dividendByYearAndStock[year]) {
+          dividendByYearAndStock[year] = {};
+        }
+        dividendByYearAndStock[year][inv.name] = (dividendByYearAndStock[year][inv.name] || 0) + record.amount;
+      });
+    }
+  });
+
+  const allYears = Array.from(allYearsSet).sort();
+  
+  // Prepare data for the BarChart
+  const chartData = allYears.map(year => {
+    const dataPoint: any = { year };
+    let total = 0;
+    Object.entries(dividendByYearAndStock[year]).forEach(([stock, amount]) => {
+      dataPoint[stock] = amount;
+      total += amount;
+    });
+    dataPoint.total = total;
+    return dataPoint;
+  });
+
+  // Get distinct stock names for the chart bars
+  const allDividendStocks = [...new Set(investments.filter(i => i.dividendRecords && i.dividendRecords.length > 0).map(i => i.name))];
+  const COLORS = ['#38bdf8', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1'];
+
   return (
     <div className="space-y-6 pb-20 md:pb-0 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -204,6 +256,12 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
           className={`flex items-center gap-2 font-semibold pb-2 border-b-2 transition-colors ${activeTab === 'history' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
         >
           <History size={18} /> Histori Laporan
+        </button>
+        <button 
+          onClick={() => setActiveTab('dividends')} 
+          className={`font-semibold pb-2 border-b-2 transition-colors ${activeTab === 'dividends' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+        >
+          Laporan Dividen
         </button>
       </div>
 
@@ -256,7 +314,7 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'history' ? (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
           {historyReports.map(report => (
             <div key={report.id} className="glass-panel p-6">
@@ -330,6 +388,81 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
               Belum ada histori laporan.
             </div>
           )}
+        </div>
+      ) : (
+        <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
+          <div className="glass-panel p-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700 pb-3 mb-6">Grafik Dividen Tahunan</h3>
+            
+            {chartData.length > 0 ? (
+              <div className="h-[350px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
+                    <XAxis dataKey="year" stroke="#64748b" />
+                    <YAxis stroke="#64748b" tickFormatter={(value) => `Rp ${value.toLocaleString('id-ID')}`} />
+                    <Tooltip 
+                      formatter={(value: any) => formatCurrencyMasked(value)} 
+                      contentStyle={{ borderRadius: '8px', backgroundColor: 'var(--color-bg)', color: 'var(--color-text-main)', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                    />
+                    <Legend />
+                    {allDividendStocks.map((stock, index) => (
+                      <Bar key={stock} dataKey={stock} stackId="a" fill={COLORS[index % COLORS.length]} radius={[0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="text-center py-10 text-slate-400 dark:text-slate-500">
+                Belum ada data dividen. Tambahkan dividen melalui menu Investments.
+              </div>
+            )}
+          </div>
+
+          <div className="glass-panel p-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700 pb-3 mb-4">Rincian Dividen per Saham</h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                  <tr>
+                    <th className="px-4 py-3">Tahun</th>
+                    <th className="px-4 py-3">Nama Saham</th>
+                    <th className="px-4 py-3 text-right">Total Dividen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allYears.length > 0 ? (
+                    allYears.map(year => (
+                      <React.Fragment key={year}>
+                        {Object.entries(dividendByYearAndStock[year]).map(([stock, amount], idx) => (
+                          <tr key={`${year}-${stock}`} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                            {idx === 0 && (
+                              <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200 align-top" rowSpan={Object.keys(dividendByYearAndStock[year]).length}>
+                                {year}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 font-medium text-emerald-600 dark:text-emerald-400">{stock}</td>
+                            <td className="px-4 py-3 text-right font-bold text-slate-700 dark:text-slate-300">{formatCurrencyMasked(amount)}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-slate-50 dark:bg-slate-800/30 border-b-2 border-slate-200 dark:border-slate-700">
+                          <td className="px-4 py-2 font-bold text-slate-600 dark:text-slate-400" colSpan={2}>Total {year}</td>
+                          <td className="px-4 py-2 text-right font-black text-emerald-600 dark:text-emerald-400">
+                            {formatCurrencyMasked(Object.values(dividendByYearAndStock[year]).reduce((sum, val) => sum + val, 0))}
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-slate-400 italic">Data dividen kosong.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
       

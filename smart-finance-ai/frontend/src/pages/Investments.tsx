@@ -15,6 +15,12 @@ interface InvestmentPurchase {
   date: string;
 }
 
+interface InvestmentDividend {
+  id: string;
+  amount: number;
+  date: string;
+}
+
 interface Investment {
   id: string;
   name: string;
@@ -28,6 +34,7 @@ interface Investment {
   lastPricePerUnit?: number;
   date: string;
   purchases?: InvestmentPurchase[];
+  dividendRecords?: InvestmentDividend[];
 }
 
 export default function Investments() {
@@ -37,10 +44,11 @@ export default function Investments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isGeneratingPrice, setIsGeneratingPrice] = useState(false);
-  const [editMode, setEditMode] = useState<'global' | 'lots'>('global');
+  const [editMode, setEditMode] = useState<'global' | 'lots' | 'dividends'>('global');
   const [currentLotIndex, setCurrentLotIndex] = useState(0);
   const [lotFormData, setLotFormData] = useState({ quantity: '1', pricePerUnit: '0', date: '' });
   const [lotEditingId, setLotEditingId] = useState<string | null>(null);
+  const [dividendFormData, setDividendFormData] = useState({ amount: '', date: new Date().toISOString().split('T')[0] });
   
   const [formData, setFormData] = useState({
     name: '',
@@ -202,6 +210,36 @@ export default function Investments() {
     } catch (error) {
       console.error('Failed to delete lot', error);
       alert('Failed to delete lot');
+    }
+  };
+
+  const handleDividendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+    try {
+      await axios.post(`${API_URL}/investment-dividends`, {
+        investmentId: editingId,
+        amount: parseFloat(dividendFormData.amount),
+        date: dividendFormData.date
+      });
+      await fetchInvestments();
+      alert('Dividend added successfully!');
+      setDividendFormData({ amount: '', date: new Date().toISOString().split('T')[0] });
+    } catch (error) {
+      console.error('Failed to add dividend', error);
+      alert('Failed to add dividend');
+    }
+  };
+
+  const handleDividendDelete = async (divId: string) => {
+    if (!confirm('Are you sure you want to delete this dividend record?')) return;
+    try {
+      await axios.delete(`${API_URL}/investment-dividends/${divId}`);
+      await fetchInvestments();
+      alert('Dividend deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete dividend', error);
+      alert('Failed to delete dividend');
     }
   };
 
@@ -404,20 +442,30 @@ export default function Investments() {
           <div className="glass-panel w-full max-w-md p-6 animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
             <h2 className="text-2xl font-bold mb-4 text-slate-800 dark:text-slate-100">{editingId ? 'Edit Investment' : 'New Investment'}</h2>
             
-            {editingId && investments.find(i => i.id === editingId)?.purchases && investments.find(i => i.id === editingId)!.purchases!.length > 0 ? (
+            {editingId ? (
               <div className="flex gap-2 mb-6 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
                 <button 
                   onClick={() => setEditMode('global')}
                   className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'global' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 >
-                  Edit Global
+                  Global
                 </button>
-                <button 
-                  onClick={() => setEditMode('lots')}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'lots' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                >
-                  Edit per Lot
-                </button>
+                {(investments.find(i => i.id === editingId)?.purchases?.length || 0) > 0 && (
+                  <button 
+                    onClick={() => setEditMode('lots')}
+                    className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'lots' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                  >
+                    Lots
+                  </button>
+                )}
+                {investments.find(i => i.id === editingId)?.category === 'Saham' && (
+                  <button 
+                    onClick={() => setEditMode('dividends')}
+                    className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'dividends' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                  >
+                    Dividends
+                  </button>
+                )}
               </div>
             ) : null}
 
@@ -528,7 +576,7 @@ export default function Investments() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : editMode === 'lots' ? (
               <div className="animate-in fade-in duration-300">
                 <div className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-xl mb-6 border border-sky-100 dark:border-sky-800">
                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{investments.find(i => i.id === editingId)?.name}</h3>
@@ -580,7 +628,63 @@ export default function Investments() {
                   </div>
                 </form>
               </div>
-            )}
+            ) : editMode === 'dividends' ? (
+              <div className="animate-in fade-in duration-300">
+                <div className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-xl mb-6 border border-sky-100 dark:border-sky-800">
+                   <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{investments.find(i => i.id === editingId)?.name} Dividend History</h3>
+                   <div className="flex justify-between items-center mt-2">
+                     <p className="text-sm text-slate-500 dark:text-slate-400">Total Dividends Received: <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(investments.find(i => i.id === editingId)?.dividends || 0)}</span></p>
+                   </div>
+                </div>
+
+                <form onSubmit={handleDividendSubmit} className="space-y-4 mb-6 p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                  <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">Add New Dividend</h4>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Total Amount (Rp)</label>
+                    <input required type="number" step="any" value={dividendFormData.amount} onChange={(e) => setDividendFormData({...dividendFormData, amount: e.target.value})} className="glass-input w-full text-sm py-2" placeholder="e.g. 50000" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date Received</label>
+                    <input required type="date" value={dividendFormData.date} onChange={(e) => setDividendFormData({...dividendFormData, date: e.target.value})} className="glass-input w-full text-sm py-2" />
+                  </div>
+                  <button type="submit" className="btn-primary w-full py-2 text-sm mt-2">Save Dividend</button>
+                </form>
+
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                    <thead className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 uppercase">
+                      <tr>
+                        <th className="px-4 py-2">Date</th>
+                        <th className="px-4 py-2 text-right">Amount</th>
+                        <th className="px-4 py-2 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {investments.find(i => i.id === editingId)?.dividendRecords?.map((div) => (
+                        <tr key={div.id} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+                          <td className="px-4 py-3">{new Date(div.date).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">+{formatCurrency(div.amount)}</td>
+                          <td className="px-4 py-3 text-center">
+                            <button onClick={() => handleDividendDelete(div.id)} className="text-rose-400 hover:text-rose-600 transition-colors">
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {(!investments.find(i => i.id === editingId)?.dividendRecords || investments.find(i => i.id === editingId)?.dividendRecords?.length === 0) && (
+                        <tr>
+                          <td colSpan={3} className="px-4 py-6 text-center text-slate-400 italic">No dividend records found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex justify-end pt-4 mt-6 border-t border-slate-200 dark:border-slate-700">
+                  <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="btn-secondary px-4 py-2">Close</button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

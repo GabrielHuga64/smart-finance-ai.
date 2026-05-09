@@ -81,6 +81,9 @@ app.get('/api/investments', async (req, res) => {
       include: {
         purchases: {
           orderBy: { date: 'desc' }
+        },
+        dividendRecords: {
+          orderBy: { date: 'desc' }
         }
       }
     });
@@ -296,6 +299,104 @@ app.delete('/api/investment-purchases/:id', async (req, res) => {
   } catch (error) {
     console.error("Failed to delete purchase:", error);
     res.status(500).json({ error: 'Failed to delete investment purchase' });
+  }
+});
+
+// --- INVESTMENT DIVIDENDS ---
+
+app.post('/api/investment-dividends', async (req, res) => {
+  try {
+    const { investmentId, amount, date } = req.body;
+    
+    const dividend = await prisma.investmentDividend.create({
+      data: {
+        investmentId,
+        amount: parseFloat(amount),
+        date: date ? new Date(date) : new Date(),
+      },
+    });
+
+    // Recalculate parent investment total dividends
+    const allDividends = await prisma.investmentDividend.findMany({
+      where: { investmentId }
+    });
+    
+    let totalDividends = 0;
+    allDividends.forEach(d => totalDividends += d.amount);
+
+    const updatedParent = await prisma.investment.update({
+      where: { id: investmentId },
+      data: { dividends: totalDividends }
+    });
+
+    res.json(dividend);
+  } catch (error) {
+    console.error("Failed to add dividend:", error);
+    res.status(500).json({ error: 'Failed to add investment dividend' });
+  }
+});
+
+app.put('/api/investment-dividends/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, date } = req.body;
+    
+    const updatedDividend = await prisma.investmentDividend.update({
+      where: { id },
+      data: {
+        amount: parseFloat(amount),
+        date: date ? new Date(date) : new Date(),
+      },
+    });
+
+    // Recalculate parent
+    const allDividends = await prisma.investmentDividend.findMany({
+      where: { investmentId: updatedDividend.investmentId }
+    });
+    
+    let totalDividends = 0;
+    allDividends.forEach(d => totalDividends += d.amount);
+
+    const updatedParent = await prisma.investment.update({
+      where: { id: updatedDividend.investmentId },
+      data: { dividends: totalDividends }
+    });
+
+    res.json(updatedDividend);
+  } catch (error) {
+    console.error("Failed to update dividend:", error);
+    res.status(500).json({ error: 'Failed to update investment dividend' });
+  }
+});
+
+app.delete('/api/investment-dividends/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const dividend = await prisma.investmentDividend.findUnique({ where: { id } });
+    if (!dividend) {
+      return res.status(404).json({ error: 'Dividend not found' });
+    }
+
+    await prisma.investmentDividend.delete({ where: { id } });
+
+    // Recalculate parent
+    const allDividends = await prisma.investmentDividend.findMany({
+      where: { investmentId: dividend.investmentId }
+    });
+    
+    let totalDividends = 0;
+    allDividends.forEach(d => totalDividends += d.amount);
+
+    const updatedParent = await prisma.investment.update({
+      where: { id: dividend.investmentId },
+      data: { dividends: totalDividends }
+    });
+
+    res.json({ success: true, updatedParent });
+  } catch (error) {
+    console.error("Failed to delete dividend:", error);
+    res.status(500).json({ error: 'Failed to delete investment dividend' });
   }
 });
 

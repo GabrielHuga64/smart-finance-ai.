@@ -40,6 +40,16 @@ model Investment {
   updatedAt        DateTime @updatedAt
 
   purchases        InvestmentPurchase[]
+  dividendRecords  InvestmentDividend[]
+}
+
+model InvestmentDividend {
+  id               String   @id @default(uuid())
+  investmentId     String
+  investment       Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  amount           Float
+  date             DateTime @default(now())
+  createdAt        DateTime @default(now())
 }
 
 model InvestmentPurchase {
