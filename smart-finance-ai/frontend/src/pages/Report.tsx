@@ -39,12 +39,14 @@ interface Investment {
 
 export default function Report() {
   const { formatCurrencyMasked } = useBalance();
-  const [summary, setSummary] = useState({
-    totalIncome: 0,
-    totalExpense: 0,
+  const [summary, setSummary] = useState({ 
+    totalIncome: 0, 
+    totalExpense: 0, 
+    currentMonthIncome: 0,
+    currentMonthExpense: 0,
     balance: 0,
     totalInvestmentValue: 0,
-    gabunganAset: 0
+    gabunganAset: 0 
   });
   const [loading, setLoading] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState('');
@@ -95,9 +97,9 @@ export default function Report() {
 
     try {
       const prompt = `Saya memiliki data keuangan bulan ini sebagai berikut:
-Total Pemasukan: Rp ${summary.totalIncome.toLocaleString('id-ID')}
-Total Pengeluaran: Rp ${summary.totalExpense.toLocaleString('id-ID')}
-Saldo Kas: Rp ${summary.balance.toLocaleString('id-ID')}
+Total Pemasukan Bulan Ini: Rp ${summary.currentMonthIncome.toLocaleString('id-ID')}
+Total Pengeluaran Bulan Ini: Rp ${summary.currentMonthExpense.toLocaleString('id-ID')}
+Saldo Kas Keseluruhan: Rp ${summary.balance.toLocaleString('id-ID')}
 Total Aset Investasi: Rp ${summary.totalInvestmentValue.toLocaleString('id-ID')}
 Total Gabungan Aset: Rp ${summary.gabunganAset.toLocaleString('id-ID')}
 
@@ -120,8 +122,8 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
       await axios.post(`${API_URL}/monthly-reports`, {
         month: monthFormatter.format(new Date()),
         totalAssets: summary.gabunganAset,
-        totalIncome: summary.totalIncome,
-        totalExpense: summary.totalExpense,
+        totalIncome: summary.currentMonthIncome,
+        totalExpense: summary.currentMonthExpense,
         investmentValue: summary.totalInvestmentValue,
         aiAnalysis: analysisText
       });
@@ -281,12 +283,12 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
             
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">Total Pemasukan</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrencyMasked(summary.totalIncome)}</span>
+                <span className="text-slate-600 dark:text-slate-400 font-medium">Pemasukan (Bulan Ini)</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrencyMasked(summary.currentMonthIncome)}</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">Total Pengeluaran</span>
-                <span className="text-rose-600 dark:text-rose-400 font-bold">{formatCurrencyMasked(summary.totalExpense)}</span>
+                <span className="text-slate-600 dark:text-slate-400 font-medium">Pengeluaran (Bulan Ini)</span>
+                <span className="text-rose-600 dark:text-rose-400 font-bold">{formatCurrencyMasked(summary.currentMonthExpense)}</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
                 <span className="text-slate-600 dark:text-slate-400 font-medium">Aset Investasi</span>

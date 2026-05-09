@@ -420,10 +420,25 @@ app.get('/api/summary', async (req, res) => {
     
     let totalIncome = 0;
     let totalExpense = 0;
+    let currentMonthIncome = 0;
+    let currentMonthExpense = 0;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
     
     transactions.forEach((tx) => {
-      if (tx.type === 'INCOME') totalIncome += tx.amount;
-      else if (tx.type === 'EXPENSE') totalExpense += tx.amount;
+      const txDate = new Date(tx.date);
+      const isCurrentMonth = txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+
+      if (tx.type === 'INCOME') {
+        totalIncome += tx.amount;
+        if (isCurrentMonth) currentMonthIncome += tx.amount;
+      }
+      else if (tx.type === 'EXPENSE') {
+        totalExpense += tx.amount;
+        if (isCurrentMonth) currentMonthExpense += tx.amount;
+      }
     });
 
     let totalInvested = 0;
@@ -443,6 +458,8 @@ app.get('/api/summary', async (req, res) => {
     res.json({
       totalIncome,
       totalExpense,
+      currentMonthIncome,
+      currentMonthExpense,
       balance,
       totalInvested,
       totalInvestmentValue: totalCurrentValue,
