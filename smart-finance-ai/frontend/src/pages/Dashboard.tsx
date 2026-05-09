@@ -125,7 +125,7 @@ export default function Dashboard() {
             <div>
               <p className="text-sky-600 dark:text-sky-400 font-medium mb-1">Gabungan Aset</p>
               <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(summary.gabunganAset)}</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Saldo + Investasi + Deviden</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Saldo + Investasi</p>
             </div>
             <div className="p-3 bg-sky-100 dark:bg-sky-900/50 rounded-xl text-sky-600 dark:text-sky-400">
               <Wallet size={24} />

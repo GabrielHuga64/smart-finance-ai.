@@ -525,13 +525,6 @@ export default function Investments() {
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Total Valuation will be calculated automatically.</p>
                   </div>
 
-                  {formData.category === 'Saham' && (
-                    <div className="animate-in slide-in-from-top-2 duration-300">
-                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Dividends Received (Optional)</label>
-                      <input type="number" value={formData.dividends} onChange={(e) => setFormData({...formData, dividends: e.target.value})} className="glass-input w-full border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/20" placeholder="0" />
-                    </div>
-                  )}
-
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Date</label>
                     <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="glass-input w-full" />
