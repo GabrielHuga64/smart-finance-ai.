@@ -452,8 +452,8 @@ app.get('/api/summary', async (req, res) => {
     });
 
     const balance = totalIncome - totalExpense;
-    // Gabungan Aset = Saldo + (Current Value + Dividends)
-    const gabunganAset = totalCurrentValue + balance + totalDividends; 
+    // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
+    const gabunganAset = totalCurrentValue + balance; 
 
     res.json({
       totalIncome,
