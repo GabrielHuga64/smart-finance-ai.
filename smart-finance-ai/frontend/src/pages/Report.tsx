@@ -32,6 +32,8 @@ interface Investment {
   id: string;
   name: string;
   category: string;
+  dividends: number;
+  date: string;
   dividendRecords?: InvestmentDividend[];
 }
 
@@ -201,6 +203,13 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
         }
         dividendByYearAndStock[year][inv.name] = (dividendByYearAndStock[year][inv.name] || 0) + record.amount;
       });
+    } else if (inv.dividends > 0) {
+      const year = new Date(inv.date || Date.now()).getFullYear().toString();
+      allYearsSet.add(year);
+      if (!dividendByYearAndStock[year]) {
+        dividendByYearAndStock[year] = {};
+      }
+      dividendByYearAndStock[year][inv.name] = (dividendByYearAndStock[year][inv.name] || 0) + inv.dividends;
     }
   });
 
@@ -219,7 +228,7 @@ Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengen
   });
 
   // Get distinct stock names for the chart bars
-  const allDividendStocks = [...new Set(investments.filter(i => i.dividendRecords && i.dividendRecords.length > 0).map(i => i.name))];
+  const allDividendStocks = [...new Set(investments.filter(i => (i.dividendRecords && i.dividendRecords.length > 0) || i.dividends > 0).map(i => i.name))];
   const COLORS = ['#38bdf8', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1'];
 
   return (
