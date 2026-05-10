@@ -20,6 +20,8 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isCustomInvestmentCategory, setIsCustomInvestmentCategory] = useState(false);
   
   const [formData, setFormData] = useState({
     amount: '',
@@ -66,6 +68,8 @@ export default function Transactions() {
       investmentUnit: 'Lembar'
     });
     setEditingId(tx.id);
+    setIsCustomCategory(false);
+    setIsCustomInvestmentCategory(false);
     setIsModalOpen(true);
   };
 
@@ -96,6 +100,8 @@ export default function Transactions() {
       }
       setIsModalOpen(false);
       setEditingId(null);
+      setIsCustomCategory(false);
+      setIsCustomInvestmentCategory(false);
       setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: new Date().toISOString().split('T')[0], addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' });
       fetchTransactions();
     } catch (error) {
@@ -122,7 +128,7 @@ export default function Transactions() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Transactions</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your income and expenses.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: new Date().toISOString().split('T')[0], addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setIsCustomInvestmentCategory(false); setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: new Date().toISOString().split('T')[0], addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={20} />
           <span>Add New</span>
         </button>
@@ -211,12 +217,32 @@ export default function Transactions() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
-                <input required type="text" list="transaction-categories" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full" placeholder="e.g. Food, Salary, Investasi" />
-                <datalist id="transaction-categories">
-                  {transactionCategories.map(cat => (
-                    <option key={cat} value={cat} />
-                  ))}
-                </datalist>
+                {!isCustomCategory ? (
+                  <select 
+                    required 
+                    value={transactionCategories.includes(formData.category) ? formData.category : (formData.category ? 'ADD_NEW' : '')} 
+                    onChange={(e) => {
+                      if (e.target.value === 'ADD_NEW') {
+                        setIsCustomCategory(true);
+                        setFormData({...formData, category: ''});
+                      } else {
+                        setFormData({...formData, category: e.target.value});
+                      }
+                    }}
+                    className="glass-input w-full bg-white dark:bg-slate-900"
+                  >
+                    <option value="" disabled>Select Category...</option>
+                    {transactionCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    <option value="ADD_NEW">+ Tambah Kategori Baru</option>
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input required type="text" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full flex-1" placeholder="Ketik kategori baru..." autoFocus />
+                    <button type="button" onClick={() => { setIsCustomCategory(false); setFormData({...formData, category: transactionCategories[0] || 'Food'}) }} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors text-sm font-medium border border-slate-200 dark:border-slate-700">Batal</button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -253,14 +279,32 @@ export default function Transactions() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Asset Category</label>
-                    <input required type="text" list="default-investment-categories" value={formData.investmentCategory} onChange={(e) => setFormData({...formData, investmentCategory: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900" placeholder="e.g. Saham, Properti" />
-                    <datalist id="default-investment-categories">
-                      <option value="Saham" />
-                      <option value="Reksadana" />
-                      <option value="Kripto" />
-                      <option value="Emas" />
-                      <option value="Lainnya" />
-                    </datalist>
+                    {!isCustomInvestmentCategory ? (
+                      <select 
+                        required 
+                        value={['Saham', 'Reksadana', 'Kripto', 'Emas', 'Lainnya'].includes(formData.investmentCategory) ? formData.investmentCategory : (formData.investmentCategory ? 'ADD_NEW' : '')} 
+                        onChange={(e) => {
+                          if (e.target.value === 'ADD_NEW') {
+                            setIsCustomInvestmentCategory(true);
+                            setFormData({...formData, investmentCategory: ''});
+                          } else {
+                            setFormData({...formData, investmentCategory: e.target.value});
+                          }
+                        }}
+                        className="glass-input w-full bg-white dark:bg-slate-900"
+                      >
+                        <option value="" disabled>Select Asset Category...</option>
+                        {['Saham', 'Reksadana', 'Kripto', 'Emas', 'Lainnya'].map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="ADD_NEW">+ Tambah Kategori Baru</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input required type="text" value={formData.investmentCategory} onChange={(e) => setFormData({...formData, investmentCategory: e.target.value})} className="glass-input w-full flex-1" placeholder="Ketik kategori aset baru..." autoFocus />
+                        <button type="button" onClick={() => { setIsCustomInvestmentCategory(false); setFormData({...formData, investmentCategory: 'Saham'}) }} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors text-sm font-medium border border-slate-200 dark:border-slate-700">Batal</button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-4">
                     <div className="flex-1">

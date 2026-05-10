@@ -49,6 +49,7 @@ export default function Investments() {
   const [lotFormData, setLotFormData] = useState({ quantity: '1', pricePerUnit: '0', date: '' });
   const [lotEditingId, setLotEditingId] = useState<string | null>(null);
   const [dividendFormData, setDividendFormData] = useState({ amount: '', date: new Date().toISOString().split('T')[0] });
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -130,6 +131,7 @@ export default function Investments() {
     } else {
       setEditMode('global');
     }
+    setIsCustomCategory(false);
     setIsModalOpen(true);
   };
 
@@ -182,6 +184,7 @@ export default function Investments() {
       }
       setIsModalOpen(false);
       setEditingId(null);
+      setIsCustomCategory(false);
       setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] });
       fetchInvestments();
     } catch (error) {
@@ -281,7 +284,7 @@ export default function Investments() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Investments</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage and track your investment portfolio.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={20} />
           <span>Add New</span>
         </button>
@@ -489,12 +492,32 @@ export default function Investments() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
-                    <input required type="text" list="investment-categories" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full bg-white dark:bg-slate-900" placeholder="e.g. Saham, Properti" />
-                    <datalist id="investment-categories">
-                      {allInvestmentCategories.map(cat => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
+                    {!isCustomCategory ? (
+                      <select 
+                        required 
+                        value={allInvestmentCategories.includes(formData.category) ? formData.category : (formData.category ? 'ADD_NEW' : '')} 
+                        onChange={(e) => {
+                          if (e.target.value === 'ADD_NEW') {
+                            setIsCustomCategory(true);
+                            setFormData({...formData, category: ''});
+                          } else {
+                            setFormData({...formData, category: e.target.value});
+                          }
+                        }}
+                        className="glass-input w-full bg-white dark:bg-slate-900"
+                      >
+                        <option value="" disabled>Select Category...</option>
+                        {allInvestmentCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="ADD_NEW">+ Tambah Kategori Baru</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input required type="text" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="glass-input w-full flex-1" placeholder="Ketik kategori baru..." autoFocus />
+                        <button type="button" onClick={() => { setIsCustomCategory(false); setFormData({...formData, category: allInvestmentCategories[0] || 'Saham'}) }} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors text-sm font-medium border border-slate-200 dark:border-slate-700">Batal</button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-4">
