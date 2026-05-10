@@ -14,7 +14,7 @@ const NAV_ITEMS = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { isBalanceHidden, toggleBalance } = useBalance();
+  const { visibilityState, toggleBalance } = useBalance();
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -34,8 +34,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button onClick={toggleTheme} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            <button onClick={toggleBalance} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-              {isBalanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
+            <button onClick={toggleBalance} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors relative" title={visibilityState === 0 ? "Mask >50M" : visibilityState === 1 ? "Mask All" : "Show All"}>
+              {visibilityState === 0 && <><Eye size={20} className="opacity-50" /><span className="absolute -top-1 -right-1 text-[10px] font-bold text-sky-500">*</span></>}
+              {visibilityState === 1 && <EyeOff size={20} />}
+              {visibilityState === 2 && <Eye size={20} />}
             </button>
           </div>
         </div>
@@ -75,8 +77,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <button onClick={toggleTheme} className="text-slate-500 dark:text-slate-400">
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          <button onClick={toggleBalance} className="text-slate-500 dark:text-slate-400">
-            {isBalanceHidden ? <EyeOff size={20} /> : <Eye size={20} />}
+          <button onClick={toggleBalance} className="text-slate-500 dark:text-slate-400 relative" title={visibilityState === 0 ? "Mask >50M" : visibilityState === 1 ? "Mask All" : "Show All"}>
+            {visibilityState === 0 && <><Eye size={20} className="opacity-50" /><span className="absolute -top-1 -right-1 text-[10px] font-bold text-sky-500">*</span></>}
+            {visibilityState === 1 && <EyeOff size={20} />}
+            {visibilityState === 2 && <Eye size={20} />}
           </button>
         </div>
       </div>
