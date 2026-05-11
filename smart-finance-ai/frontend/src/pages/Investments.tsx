@@ -290,6 +290,67 @@ export default function Investments() {
         </button>
       </div>
 
+      {/* Summary Table */}
+      {investmentCategories.length > 0 && (
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 text-center">
+            Investment
+          </h2>
+          <div className="glass-panel overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="px-6 py-4">Category Aset</th>
+                  <th className="px-6 py-4 text-right">Invested</th>
+                  <th className="px-6 py-4 text-right">Current Value</th>
+                  <th className="px-6 py-4 text-right">Capital Gain</th>
+                  <th className="px-6 py-4 text-right">Dividend</th>
+                  <th className="px-6 py-4 text-right">Total Return</th>
+                </tr>
+              </thead>
+              <tbody>
+                {investmentCategories.map(category => {
+                  const catInvs = investments.filter(i => i.category === category);
+                  const totalInvested = catInvs.reduce((sum, i) => sum + i.investedAmount, 0);
+                  const totalValue = catInvs.reduce((sum, i) => sum + i.currentValue, 0);
+                  const totalDividend = catInvs.reduce((sum, i) => sum + (i.dividends || 0), 0);
+                  const totalCapitalGain = totalValue - totalInvested;
+                  const totalReturn = totalCapitalGain + totalDividend;
+                  
+                  const isPositive = totalReturn >= 0;
+                  const isCapitalGainPositive = totalCapitalGain >= 0;
+                  const isDividendPositive = totalDividend > 0;
+
+                  return (
+                    <tr key={category} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
+                        {category}
+                      </td>
+                      <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-300">
+                        {formatCurrency(totalInvested)}
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-slate-800 dark:text-slate-200">
+                        {formatCurrency(totalValue)}
+                      </td>
+                      <td className={`px-6 py-4 text-right font-medium ${isCapitalGainPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {isCapitalGainPositive ? '+' : ''}{formatCurrency(totalCapitalGain)}
+                      </td>
+                      <td className={`px-6 py-4 text-right font-medium ${isDividendPositive ? 'text-sky-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {isDividendPositive ? '+' : ''}{formatCurrency(totalDividend)}
+                      </td>
+                      <td className={`px-6 py-4 text-right font-bold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {isPositive ? '+' : ''}{formatCurrency(totalReturn)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Detailed Category Tables */}
       {investmentCategories.length > 0 ? (
         investmentCategories.map((category) => {
           const categoryInvestments = investments.filter(inv => inv.category === category);
