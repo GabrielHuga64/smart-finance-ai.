@@ -354,6 +354,16 @@ export default function Investments() {
       {investmentCategories.length > 0 ? (
         investmentCategories.map((category) => {
           const categoryInvestments = investments.filter(inv => inv.category === category);
+          const catTotalInvested = categoryInvestments.reduce((sum, i) => sum + i.investedAmount, 0);
+          const catTotalValue = categoryInvestments.reduce((sum, i) => sum + i.currentValue, 0);
+          const catTotalDividend = categoryInvestments.reduce((sum, i) => sum + (i.dividends || 0), 0);
+          const catTotalCapitalGain = catTotalValue - catTotalInvested;
+          const catTotalReturn = catTotalCapitalGain + catTotalDividend;
+          
+          const isCatPositive = catTotalReturn >= 0;
+          const isCatCapitalGainPositive = catTotalCapitalGain >= 0;
+          const isCatDividendPositive = catTotalDividend > 0;
+
           return (
             <div key={category} className="mb-8">
               <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 px-1 flex items-center gap-2">
@@ -433,6 +443,23 @@ export default function Investments() {
                       );
                     })}
                   </tbody>
+                  <tfoot className="bg-slate-50/80 dark:bg-slate-800/80 border-t-2 border-slate-200 dark:border-slate-700 font-bold">
+                    <tr>
+                      <td colSpan={4} className="px-6 py-4 text-slate-800 dark:text-slate-200">Total {category}</td>
+                      <td className="px-6 py-4 text-right text-slate-800 dark:text-slate-200">{formatCurrency(catTotalInvested)}</td>
+                      <td className="px-6 py-4 text-right text-slate-800 dark:text-slate-200">{formatCurrency(catTotalValue)}</td>
+                      <td className={`px-6 py-4 text-right ${isCatCapitalGainPositive ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
+                        {isCatCapitalGainPositive ? '+' : ''}{formatCurrency(catTotalCapitalGain)}
+                      </td>
+                      <td className={`px-6 py-4 text-right ${isCatDividendPositive ? 'text-sky-600 dark:text-sky-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                        {isCatDividendPositive ? '+' : ''}{formatCurrency(catTotalDividend)}
+                      </td>
+                      <td className={`px-6 py-4 text-right ${isCatPositive ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
+                        {isCatPositive ? '+' : ''}{formatCurrency(catTotalReturn)}
+                      </td>
+                      <td className="px-6 py-4"></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
