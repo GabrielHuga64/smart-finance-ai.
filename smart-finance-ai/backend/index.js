@@ -28,7 +28,7 @@ app.post('/api/auth/google', async (req, res) => {
     const payload = ticket.getPayload();
     const { sub, email, name, picture } = payload;
 
-    const totalUsers = await prisma.user.count();
+    const defaultUserExists = await prisma.user.findUnique({ where: { id: 'default-system-user' } });
     let user = await prisma.user.findUnique({ where: { googleId: sub } });
     
     if (!user) {
@@ -36,7 +36,7 @@ app.post('/api/auth/google', async (req, res) => {
         data: { googleId: sub, email, name, picture }
       });
 
-      if (totalUsers === 1) {
+      if (defaultUserExists) {
         // Transfer all existing default data to this first real user
         await prisma.transaction.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
         await prisma.investment.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
