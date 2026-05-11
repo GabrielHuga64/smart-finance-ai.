@@ -13,8 +13,25 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id        String   @id @default(uuid())
+  googleId  String   @unique
+  email     String   @unique
+  name      String
+  picture   String?
+  createdAt DateTime @default(now())
+
+  transactions       Transaction[]
+  investments        Investment[]
+  investmentDivs     InvestmentDividend[]
+  investmentPurchs   InvestmentPurchase[]
+  monthlyReports     MonthlyReport[]
+}
+
 model Transaction {
   id          String   @id @default(uuid())
+  userId      String   @default("default-system-user")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount      Float
   type        String   // "INCOME" or "EXPENSE"
   category    String
@@ -26,6 +43,8 @@ model Transaction {
 
 model Investment {
   id               String   @id @default(uuid())
+  userId           String   @default("default-system-user")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name             String
   category         String   // "Saham", "Reksadana", "Kripto", "Emas", dll
   investedAmount   Float
@@ -45,6 +64,8 @@ model Investment {
 
 model InvestmentDividend {
   id               String   @id @default(uuid())
+  userId           String   @default("default-system-user")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   investmentId     String
   investment       Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
   amount           Float
@@ -54,6 +75,8 @@ model InvestmentDividend {
 
 model InvestmentPurchase {
   id               String   @id @default(uuid())
+  userId           String   @default("default-system-user")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   investmentId     String
   investment       Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
   quantity         Float
@@ -65,6 +88,8 @@ model InvestmentPurchase {
 
 model MonthlyReport {
   id               String   @id @default(uuid())
+  userId           String   @default("default-system-user")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   month            String   // e.g., "April 2026"
   totalAssets      Float
   totalIncome      Float

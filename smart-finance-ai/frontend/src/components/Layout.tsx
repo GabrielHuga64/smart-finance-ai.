@@ -3,6 +3,8 @@ import { LayoutDashboard, ReceiptText, Sparkles, Wallet, TrendingUp, Eye, EyeOff
 import { motion } from 'framer-motion';
 import { useBalance } from '../context/BalanceContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { LogOut } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,6 +18,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { visibilityState, toggleBalance } = useBalance();
   const { theme, toggleTheme } = useTheme();
+  const { logout, user } = useAuth();
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-200 overflow-hidden">
@@ -66,6 +69,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-3 mb-4 px-2">
+            {user?.picture ? (
+              <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-600" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center text-sky-600 dark:text-sky-400 font-bold">
+                {user?.name?.[0] || 'U'}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{user?.name}</p>
+            </div>
+          </div>
+          <button onClick={logout} className="w-full flex items-center gap-2 justify-center px-4 py-2 text-sm text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-colors">
+            <LogOut size={18} />
+            <span>Logout</span>
+          </button>
+        </div>
       </aside>
 
       {/* Mobile Top Navigation Additions (Theme Toggle) */}
@@ -81,6 +102,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {visibilityState === 0 && <><Eye size={20} className="opacity-50" /><span className="absolute -top-1 -right-1 text-[10px] font-bold text-sky-500">*</span></>}
             {visibilityState === 1 && <EyeOff size={20} />}
             {visibilityState === 2 && <Eye size={20} />}
+          </button>
+          <button onClick={logout} className="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400" title="Logout">
+            <LogOut size={20} />
           </button>
         </div>
       </div>

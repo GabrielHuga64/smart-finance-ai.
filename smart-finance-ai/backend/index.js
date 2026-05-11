@@ -2,20 +2,75 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('./generated/client');
 const { GoogleGenAI } = require('@google/genai');
+const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
+const authMiddleware = require('./authMiddleware');
 require('dotenv').config();
 
 const app = express();
 const prisma = new PrismaClient({});
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const googleClient = new OAuth2Client();
 
 app.use(cors());
 app.use(express.json());
+
+// --- AUTHENTICATION ---
+
+app.post('/api/auth/google', async (req, res) => {
+  const { token } = req.body;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      // Pass the client ID from environment or accept any if not strictly defined for now
+      audience: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id-for-now.apps.googleusercontent.com',
+    });
+    const payload = ticket.getPayload();
+    const { sub, email, name, picture } = payload;
+
+    const totalUsers = await prisma.user.count();
+    let user = await prisma.user.findUnique({ where: { googleId: sub } });
+    
+    if (!user) {
+      user = await prisma.user.create({
+        data: { googleId: sub, email, name, picture }
+      });
+
+      if (totalUsers === 1) {
+        // Transfer all existing default data to this first real user
+        await prisma.transaction.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
+        await prisma.investment.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
+        await prisma.investmentPurchase.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
+        await prisma.investmentDividend.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
+        await prisma.monthlyReport.updateMany({ where: { userId: 'default-system-user' }, data: { userId: user.id }});
+        
+        await prisma.user.delete({ where: { id: 'default-system-user' }});
+      }
+    }
+
+    const authToken = jwt.sign({ id: user.id, googleId: user.googleId, email: user.email }, process.env.JWT_SECRET || 'fallback-secret-smartfinance', { expiresIn: '30d' });
+    
+    res.json({ token: authToken, user });
+  } catch (error) {
+    console.error("Auth error:", error);
+    res.status(401).json({ error: 'Invalid Google Token' });
+  }
+});
+
+// Protect all following routes
+app.use('/api/transactions', authMiddleware);
+app.use('/api/investments', authMiddleware);
+app.use('/api/investment-purchases', authMiddleware);
+app.use('/api/investment-dividends', authMiddleware);
+app.use('/api/summary', authMiddleware);
+app.use('/api/monthly-reports', authMiddleware);
 
 // --- TRANSACTIONS ---
 
 app.get('/api/transactions', async (req, res) => {
   try {
     const transactions = await prisma.transaction.findMany({
+      where: { userId: req.user.id },
       orderBy: { date: 'desc' },
     });
     res.json(transactions);
@@ -29,6 +84,7 @@ app.post('/api/transactions', async (req, res) => {
     const { amount, type, category, description, date } = req.body;
     const transaction = await prisma.transaction.create({
       data: {
+        userId: req.user.id,
         amount: parseFloat(amount),
         type,
         category,
@@ -47,7 +103,7 @@ app.put('/api/transactions/:id', async (req, res) => {
     const { id } = req.params;
     const { amount, type, category, description, date } = req.body;
     const transaction = await prisma.transaction.update({
-      where: { id },
+      where: { id, userId: req.user.id },
       data: {
         amount: parseFloat(amount),
         type,
@@ -65,7 +121,7 @@ app.put('/api/transactions/:id', async (req, res) => {
 app.delete('/api/transactions/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.transaction.delete({ where: { id } });
+    await prisma.transaction.delete({ where: { id, userId: req.user.id } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete transaction' });
@@ -77,6 +133,7 @@ app.delete('/api/transactions/:id', async (req, res) => {
 app.get('/api/investments', async (req, res) => {
   try {
     const investments = await prisma.investment.findMany({
+      where: { userId: req.user.id },
       orderBy: { date: 'desc' },
       include: {
         purchases: {
@@ -99,7 +156,7 @@ app.post('/api/investments', async (req, res) => {
     
     // Check if investment with same name exists (case-insensitive search manually or exact)
     const existing = await prisma.investment.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } }
+      where: { name: { equals: name, mode: 'insensitive' }, userId: req.user.id }
     });
 
     if (existing) {
@@ -112,7 +169,7 @@ app.post('/api/investments', async (req, res) => {
       const newDividends = (existing.dividends || 0) + (dividends ? parseFloat(dividends) : 0);
 
       const investment = await prisma.investment.update({
-        where: { id: existing.id },
+        where: { id: existing.id, userId: req.user.id },
         data: {
           investedAmount: newInvestedAmount,
           quantity: newQuantity,
@@ -126,6 +183,7 @@ app.post('/api/investments', async (req, res) => {
 
       await prisma.investmentPurchase.create({
         data: {
+          userId: req.user.id,
           investmentId: investment.id,
           quantity: parseFloat(quantity),
           pricePerUnit: parseFloat(investedAmount) / parseFloat(quantity),
@@ -139,6 +197,7 @@ app.post('/api/investments', async (req, res) => {
       // Create new
       const investment = await prisma.investment.create({
         data: {
+          userId: req.user.id,
           name,
           category,
           investedAmount: parseFloat(investedAmount),
@@ -154,6 +213,7 @@ app.post('/api/investments', async (req, res) => {
 
       await prisma.investmentPurchase.create({
         data: {
+          userId: req.user.id,
           investmentId: investment.id,
           quantity: parseFloat(quantity),
           pricePerUnit: parseFloat(investedAmount) / parseFloat(quantity),
@@ -175,7 +235,7 @@ app.put('/api/investments/:id', async (req, res) => {
     const { id } = req.params;
     const { name, category, investedAmount, currentValue, dividends, date, quantity, unitType, averagePrice, lastPricePerUnit } = req.body;
     const investment = await prisma.investment.update({
-      where: { id },
+      where: { id, userId: req.user.id },
       data: {
         name,
         category,
@@ -198,7 +258,7 @@ app.put('/api/investments/:id', async (req, res) => {
 app.delete('/api/investments/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.investment.delete({ where: { id } });
+    await prisma.investment.delete({ where: { id, userId: req.user.id } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete investment' });
@@ -212,7 +272,7 @@ app.put('/api/investment-purchases/:id', async (req, res) => {
     
     // Update the purchase
     const updatedPurchase = await prisma.investmentPurchase.update({
-      where: { id },
+      where: { id, userId: req.user.id },
       data: {
         quantity: parseFloat(quantity),
         pricePerUnit: parseFloat(pricePerUnit),
@@ -261,7 +321,7 @@ app.delete('/api/investment-purchases/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const purchase = await prisma.investmentPurchase.findUnique({ where: { id } });
+    const purchase = await prisma.investmentPurchase.findUnique({ where: { id, userId: req.user.id } });
     if (!purchase) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
@@ -310,6 +370,7 @@ app.post('/api/investment-dividends', async (req, res) => {
     
     const dividend = await prisma.investmentDividend.create({
       data: {
+        userId: req.user.id,
         investmentId,
         amount: parseFloat(amount),
         date: date ? new Date(date) : new Date(),
@@ -332,6 +393,7 @@ app.post('/api/investment-dividends', async (req, res) => {
     // Automatically record as an INCOME transaction
     await prisma.transaction.create({
       data: {
+        userId: req.user.id,
         amount: parseFloat(amount),
         type: "INCOME",
         category: "Dividen",
@@ -353,7 +415,7 @@ app.put('/api/investment-dividends/:id', async (req, res) => {
     const { amount, date } = req.body;
     
     const updatedDividend = await prisma.investmentDividend.update({
-      where: { id },
+      where: { id, userId: req.user.id },
       data: {
         amount: parseFloat(amount),
         date: date ? new Date(date) : new Date(),
@@ -384,7 +446,7 @@ app.delete('/api/investment-dividends/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const dividend = await prisma.investmentDividend.findUnique({ where: { id } });
+    const dividend = await prisma.investmentDividend.findUnique({ where: { id, userId: req.user.id } });
     if (!dividend) {
       return res.status(404).json({ error: 'Dividend not found' });
     }
@@ -415,8 +477,8 @@ app.delete('/api/investment-dividends/:id', async (req, res) => {
 
 app.get('/api/summary', async (req, res) => {
   try {
-    const transactions = await prisma.transaction.findMany();
-    const investments = await prisma.investment.findMany();
+    const transactions = await prisma.transaction.findMany({ where: { userId: req.user.id } });
+    const investments = await prisma.investment.findMany({ where: { userId: req.user.id } });
     
     let totalIncome = 0;
     let totalExpense = 0;
@@ -478,6 +540,7 @@ app.get('/api/summary', async (req, res) => {
 app.get('/api/monthly-reports', async (req, res) => {
   try {
     const reports = await prisma.monthlyReport.findMany({
+      where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },
     });
     res.json(reports);
@@ -492,12 +555,12 @@ app.post('/api/monthly-reports', async (req, res) => {
     
     // Check if month already exists, update if yes
     const existing = await prisma.monthlyReport.findFirst({
-      where: { month }
+      where: { month, userId: req.user.id }
     });
 
     if (existing) {
       const updated = await prisma.monthlyReport.update({
-        where: { id: existing.id },
+        where: { id: existing.id, userId: req.user.id },
         data: { totalAssets, totalIncome, totalExpense, investmentValue, aiAnalysis }
       });
       return res.json(updated);
@@ -505,6 +568,7 @@ app.post('/api/monthly-reports', async (req, res) => {
 
     const report = await prisma.monthlyReport.create({
       data: {
+        userId: req.user.id,
         month,
         totalAssets,
         totalIncome,
@@ -526,7 +590,7 @@ app.put('/api/monthly-reports/:id', async (req, res) => {
     const { aiAnalysis } = req.body;
     
     const updated = await prisma.monthlyReport.update({
-      where: { id },
+      where: { id, userId: req.user.id },
       data: { aiAnalysis }
     });
     res.json(updated);
