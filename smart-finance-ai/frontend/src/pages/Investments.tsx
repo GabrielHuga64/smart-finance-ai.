@@ -91,8 +91,14 @@ export default function Investments() {
 
   // 2. Investment Data (Sub-Categories)
   const investmentCategories = [...new Set(investments.map(i => i.category))];
-  const standardInvestmentCategories = ["Saham", "Reksadana", "Kripto", "Emas", "Lainnya"];
+  const standardInvestmentCategories = ["Saham", "Reksadana", "Kripto", "Emas", "SBN", "Lainnya"];
   const allInvestmentCategories = [...new Set([...standardInvestmentCategories, ...investmentCategories])].filter(Boolean);
+
+  const getYieldTerm = (cat: string) => {
+    if (cat === 'Kripto') return null;
+    if (cat === 'SBN') return 'Kupon / Yield';
+    return 'Dividend';
+  };
   const subCategoryData: Record<string, {name: string; value: number; percentage: string}[]> = {};
   
   investmentCategories.forEach(category => {
@@ -304,7 +310,7 @@ export default function Investments() {
                   <th className="px-6 py-4 text-right">Invested</th>
                   <th className="px-6 py-4 text-right">Current Value</th>
                   <th className="px-6 py-4 text-right">Capital Gain</th>
-                  <th className="px-6 py-4 text-right">Dividend</th>
+                  <th className="px-6 py-4 text-right">Dividend / Yield</th>
                   <th className="px-6 py-4 text-right">Total Return</th>
                 </tr>
               </thead>
@@ -381,7 +387,7 @@ export default function Investments() {
                       <th className="px-6 py-4 text-right">Invested</th>
                       <th className="px-6 py-4 text-right">Current Value</th>
                       <th className="px-6 py-4 text-right">Capital Gain</th>
-                      <th className="px-6 py-4 text-right">Dividend</th>
+                      {getYieldTerm(category) && <th className="px-6 py-4 text-right">{getYieldTerm(category)}</th>}
                       <th className="px-6 py-4 text-right">Total Return</th>
                       <th className="px-6 py-4 text-center">Action</th>
                     </tr>
@@ -425,9 +431,11 @@ export default function Investments() {
                           <td className={`px-6 py-4 text-right font-medium ${isCapitalGainPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {isCapitalGainPositive ? '+' : ''}{formatCurrency(capitalGain)}
                           </td>
-                          <td className={`px-6 py-4 text-right font-medium ${isDividendPositive ? 'text-sky-500' : 'text-slate-400 dark:text-slate-500'}`}>
-                            {isDividendPositive ? '+' : ''}{formatCurrency(dividend)}
-                          </td>
+                          {getYieldTerm(category) && (
+                            <td className={`px-6 py-4 text-right font-medium ${isDividendPositive ? 'text-sky-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                              {isDividendPositive ? '+' : ''}{formatCurrency(dividend)}
+                            </td>
+                          )}
                           <td className={`px-6 py-4 text-right font-medium ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {isPositive ? '+' : ''}{formatCurrency(totalReturn)}
                           </td>
@@ -451,9 +459,11 @@ export default function Investments() {
                       <td className={`px-6 py-4 text-right ${isCatCapitalGainPositive ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
                         {isCatCapitalGainPositive ? '+' : ''}{formatCurrency(catTotalCapitalGain)}
                       </td>
-                      <td className={`px-6 py-4 text-right ${isCatDividendPositive ? 'text-sky-600 dark:text-sky-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                        {isCatDividendPositive ? '+' : ''}{formatCurrency(catTotalDividend)}
-                      </td>
+                      {getYieldTerm(category) && (
+                        <td className={`px-6 py-4 text-right ${isCatDividendPositive ? 'text-sky-600 dark:text-sky-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                          {isCatDividendPositive ? '+' : ''}{formatCurrency(catTotalDividend)}
+                        </td>
+                      )}
                       <td className={`px-6 py-4 text-right ${isCatPositive ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
                         {isCatPositive ? '+' : ''}{formatCurrency(catTotalReturn)}
                       </td>
@@ -559,12 +569,12 @@ export default function Investments() {
                     Lots
                   </button>
                 )}
-                {investments.find(i => i.id === editingId)?.category === 'Saham' && (
+                {getYieldTerm(investments.find(i => i.id === editingId)?.category || 'Saham') && (
                   <button 
                     onClick={() => setEditMode('dividends')}
                     className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${editMode === 'dividends' ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                   >
-                    Dividends
+                    {getYieldTerm(investments.find(i => i.id === editingId)?.category || 'Saham')}
                   </button>
                 )}
               </div>
@@ -791,16 +801,16 @@ export default function Investments() {
                 </form>
               </div>
             ) : editMode === 'dividends' ? (
-              <div className="animate-in fade-in duration-300">
-                <div className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-xl mb-6 border border-sky-100 dark:border-sky-800">
-                   <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{investments.find(i => i.id === editingId)?.name} Dividend History</h3>
-                   <div className="flex justify-between items-center mt-2">
-                     <p className="text-sm text-slate-500 dark:text-slate-400">Total Dividends Received: <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(investments.find(i => i.id === editingId)?.dividends || 0)}</span></p>
-                   </div>
+              <div className="space-y-4">
+                <div className="bg-sky-50 dark:bg-sky-900/10 p-4 rounded-xl mb-4 border border-sky-100 dark:border-sky-900/30">
+                  <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{investments.find(i => i.id === editingId)?.name} {getYieldTerm(investments.find(i => i.id === editingId)?.category || 'Saham')} History</h3>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Total {getYieldTerm(investments.find(i => i.id === editingId)?.category || 'Saham')} Received: <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(investments.find(i => i.id === editingId)?.dividends || 0)}</span></p>
+                  </div>
                 </div>
 
-                <form onSubmit={handleDividendSubmit} className="space-y-4 mb-6 p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                  <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">Add New Dividend</h4>
+                <form onSubmit={handleDividendSubmit} className="glass-panel p-4 bg-slate-50/50 dark:bg-slate-800/30">
+                  <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Add New {getYieldTerm(investments.find(i => i.id === editingId)?.category || 'Saham')}</h4>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Total Amount (Rp)</label>
                     <input required type="number" step="any" value={dividendFormData.amount} onChange={(e) => setDividendFormData({...dividendFormData, amount: e.target.value})} className="glass-input w-full text-sm py-2" placeholder="e.g. 50000" />

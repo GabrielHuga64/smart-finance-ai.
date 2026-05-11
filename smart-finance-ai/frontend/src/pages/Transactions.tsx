@@ -282,7 +282,7 @@ export default function Transactions() {
                     {!isCustomInvestmentCategory ? (
                       <select 
                         required 
-                        value={['Saham', 'Reksadana', 'Kripto', 'Emas', 'Lainnya'].includes(formData.investmentCategory) ? formData.investmentCategory : (formData.investmentCategory ? 'ADD_NEW' : '')} 
+                        value={['Saham', 'Reksadana', 'Kripto', 'Emas', 'SBN', 'Lainnya'].includes(formData.investmentCategory) ? formData.investmentCategory : (formData.investmentCategory ? 'ADD_NEW' : '')} 
                         onChange={(e) => {
                           if (e.target.value === 'ADD_NEW') {
                             setIsCustomInvestmentCategory(true);
@@ -294,7 +294,7 @@ export default function Transactions() {
                         className="glass-input w-full bg-white dark:bg-slate-900"
                       >
                         <option value="" disabled>Select Asset Category...</option>
-                        {['Saham', 'Reksadana', 'Kripto', 'Emas', 'Lainnya'].map(cat => (
+                        {['Saham', 'Reksadana', 'Kripto', 'Emas', 'SBN', 'Lainnya'].map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                         <option value="ADD_NEW">+ Tambah Kategori Baru</option>
