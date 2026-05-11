@@ -1,15 +1,20 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, TrendingUp, AlertCircle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/_/backend/api';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSuccess = async (credentialResponse: any) => {
     setIsLoading(true);
