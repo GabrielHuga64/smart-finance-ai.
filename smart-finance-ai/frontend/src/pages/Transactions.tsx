@@ -52,7 +52,8 @@ export default function Transactions() {
   }, []);
 
   const formatCurrency = formatCurrencyMasked;
-  const transactionCategories = [...new Set(transactions.map(tx => tx.category))].filter(Boolean);
+  const standardCategories = ['Food', 'Transport', 'Utilities', 'Shopping', 'Investasi', 'Salary', 'Bonus', 'Kupon / Yield'];
+  const transactionCategories = [...new Set([...standardCategories, ...transactions.map(tx => tx.category)])].filter(Boolean);
 
   const handleEdit = (tx: Transaction) => {
     setFormData({
