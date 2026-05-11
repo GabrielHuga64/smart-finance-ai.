@@ -46,7 +46,7 @@ export default function Investments() {
   const [isGeneratingPrice, setIsGeneratingPrice] = useState(false);
   const [editMode, setEditMode] = useState<'global' | 'lots' | 'dividends'>('global');
   const [currentLotIndex, setCurrentLotIndex] = useState(0);
-  const [lotFormData, setLotFormData] = useState({ quantity: '1', pricePerUnit: '0', date: '' });
+  const [lotFormData, setLotFormData] = useState({ quantity: '1', pricePerUnit: '0', totalAmount: '0', date: '' });
   const [lotEditingId, setLotEditingId] = useState<string | null>(null);
   const [dividendFormData, setDividendFormData] = useState({ amount: '', date: new Date().toISOString().split('T')[0] });
   const [isCustomCategory, setIsCustomCategory] = useState(false);
@@ -58,6 +58,8 @@ export default function Investments() {
     unitType: 'Lembar',
     buyPricePerUnit: '',
     lastPricePerUnit: '',
+    investedAmount: '',
+    currentValue: '',
     dividends: '',
     date: new Date().toISOString().split('T')[0]
   });
@@ -120,6 +122,8 @@ export default function Investments() {
       unitType: inv.unitType || 'Lembar',
       buyPricePerUnit: (inv.investedAmount / (inv.quantity || 1)).toString(),
       lastPricePerUnit: (inv.lastPricePerUnit || 0).toString(),
+      investedAmount: inv.investedAmount.toString(),
+      currentValue: inv.currentValue.toString(),
       dividends: (inv.dividends || 0).toString(),
       date: new Date(inv.date).toISOString().split('T')[0]
     });
@@ -131,6 +135,7 @@ export default function Investments() {
       setLotFormData({
         quantity: lot.quantity.toString(),
         pricePerUnit: lot.pricePerUnit.toString(),
+        totalAmount: (lot.quantity * lot.pricePerUnit).toString(),
         date: new Date(lot.date).toISOString().split('T')[0]
       });
       setLotEditingId(lot.id);
@@ -149,6 +154,7 @@ export default function Investments() {
       setLotFormData({
         quantity: lot.quantity.toString(),
         pricePerUnit: lot.pricePerUnit.toString(),
+        totalAmount: (lot.quantity * lot.pricePerUnit).toString(),
         date: new Date(lot.date).toISOString().split('T')[0]
       });
       setLotEditingId(lot.id);
@@ -159,7 +165,15 @@ export default function Investments() {
     e.preventDefault();
     if (!lotEditingId) return;
     try {
-      await axios.put(`${API_URL}/investment-purchases/${lotEditingId}`, lotFormData);
+      let finalPricePerUnit = parseFloat(lotFormData.pricePerUnit || '0');
+      const inv = investments.find(i => i.id === editingId);
+      if (inv?.category === 'Kripto') {
+        const qty = parseFloat(lotFormData.quantity || '1');
+        const total = parseFloat(lotFormData.totalAmount || '0');
+        finalPricePerUnit = qty > 0 ? total / qty : 0;
+      }
+      
+      await axios.put(`${API_URL}/investment-purchases/${lotEditingId}`, { ...lotFormData, pricePerUnit: finalPricePerUnit.toString() });
       await fetchInvestments();
       alert('Lot updated successfully!');
       // Update form data to reflect new averages
@@ -175,13 +189,29 @@ export default function Investments() {
     e.preventDefault();
     try {
       const qty = parseFloat(formData.quantity || '1');
-      const price = parseFloat(formData.lastPricePerUnit || '0');
-      const buyPrice = parseFloat(formData.buyPricePerUnit || '0');
+      let finalInvested = 0;
+      let finalCurrent = 0;
+      let finalBuyPrice = 0;
+      let finalLastPrice = 0;
+
+      if (formData.category === 'Kripto') {
+        finalInvested = parseFloat(formData.investedAmount || '0');
+        finalCurrent = parseFloat(formData.currentValue || '0');
+        finalBuyPrice = qty > 0 ? finalInvested / qty : 0;
+        finalLastPrice = qty > 0 ? finalCurrent / qty : 0;
+      } else {
+        finalBuyPrice = parseFloat(formData.buyPricePerUnit || '0');
+        finalLastPrice = parseFloat(formData.lastPricePerUnit || '0');
+        finalInvested = qty * finalBuyPrice;
+        finalCurrent = qty * finalLastPrice;
+      }
 
       const payload = {
         ...formData,
-        investedAmount: (qty * buyPrice).toString(),
-        currentValue: (qty * price).toString(),
+        investedAmount: finalInvested.toString(),
+        currentValue: finalCurrent.toString(),
+        buyPricePerUnit: finalBuyPrice.toString(),
+        lastPricePerUnit: finalLastPrice.toString(),
       };
       if (editingId) {
         await axios.put(`${API_URL}/investments/${editingId}`, payload);
@@ -191,7 +221,7 @@ export default function Investments() {
       setIsModalOpen(false);
       setEditingId(null);
       setIsCustomCategory(false);
-      setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] });
+      setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', investedAmount: '', currentValue: '', dividends: '', date: new Date().toISOString().split('T')[0] });
       fetchInvestments();
     } catch (error) {
       console.error('Failed to save investment');
@@ -290,7 +320,7 @@ export default function Investments() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Investments</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage and track your investment portfolio.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', investedAmount: '', currentValue: '', dividends: '', date: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={20} />
           <span>Add New</span>
         </button>
@@ -634,27 +664,52 @@ export default function Investments() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Average Buy Price (Per Unit)</label>
-                    <input required type="number" step="any" value={formData.buyPricePerUnit} onChange={(e) => setFormData({...formData, buyPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
-                    {formData.quantity && formData.buyPricePerUnit && (
-                      <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
-                        Total Invested: {formatCurrency(parseFloat(formData.quantity || '0') * parseFloat(formData.buyPricePerUnit || '0'))}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <div className="flex justify-between items-end mb-1">
-                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Current Price (Per Unit)</label>
-                      <button type="button" onClick={handleGeneratePrice} disabled={isGeneratingPrice} className="text-xs flex items-center gap-1 text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 px-2 py-1 rounded-md transition-colors border border-violet-200 dark:border-violet-800 disabled:opacity-50">
-                        <Sparkles size={12} />
-                        {isGeneratingPrice ? 'Fetching...' : 'Auto-fill AI'}
-                      </button>
-                    </div>
-                    <input required type="number" value={formData.lastPricePerUnit} onChange={(e) => setFormData({...formData, lastPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="Manual Input or Use AI" />
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Total Valuation will be calculated automatically.</p>
-                  </div>
+                  {formData.category === 'Kripto' ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Invested Amount (Modal)</label>
+                        <input required type="number" step="any" value={formData.investedAmount} onChange={(e) => setFormData({...formData, investedAmount: e.target.value})} className="glass-input w-full" placeholder="e.g. 10000000" />
+                        {formData.quantity && formData.investedAmount && (
+                          <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                            Avg Price Per Unit: {formatCurrency(parseFloat(formData.investedAmount || '0') / parseFloat(formData.quantity || '1'))}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Current Value (Nilai Saat Ini)</label>
+                        <input required type="number" step="any" value={formData.currentValue} onChange={(e) => setFormData({...formData, currentValue: e.target.value})} className="glass-input w-full" placeholder="e.g. 15000000" />
+                        {formData.quantity && formData.currentValue && (
+                          <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                            Current Price Per Unit: {formatCurrency(parseFloat(formData.currentValue || '0') / parseFloat(formData.quantity || '1'))}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Average Buy Price (Per Unit)</label>
+                        <input required type="number" step="any" value={formData.buyPricePerUnit} onChange={(e) => setFormData({...formData, buyPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
+                        {formData.quantity && formData.buyPricePerUnit && (
+                          <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                            Total Invested: {formatCurrency(parseFloat(formData.quantity || '0') * parseFloat(formData.buyPricePerUnit || '0'))}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Current Price (Per Unit)</label>
+                          <button type="button" onClick={handleGeneratePrice} disabled={isGeneratingPrice} className="text-xs flex items-center gap-1 text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 px-2 py-1 rounded-md transition-colors border border-violet-200 dark:border-violet-800 disabled:opacity-50">
+                            <Sparkles size={12} />
+                            {isGeneratingPrice ? 'Fetching...' : 'Auto-fill AI'}
+                          </button>
+                        </div>
+                        <input required type="number" value={formData.lastPricePerUnit} onChange={(e) => setFormData({...formData, lastPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="Manual Input or Use AI" />
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Total Valuation will be calculated automatically.</p>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Date</label>
@@ -772,17 +827,31 @@ export default function Investments() {
                     <input required type="number" step="any" value={lotFormData.quantity} onChange={(e) => setLotFormData({...lotFormData, quantity: e.target.value})} className="glass-input w-full" placeholder="1" />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Price Per Unit</label>
-                    <input required type="number" value={lotFormData.pricePerUnit} onChange={(e) => setLotFormData({...lotFormData, pricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Validated</label>
-                    <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium">
-                      {formatCurrency((parseFloat(lotFormData.quantity || '0') * parseFloat(lotFormData.pricePerUnit || '0')))}
+                  {investments.find(i => i.id === editingId)?.category === 'Kripto' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Invested Amount (Modal)</label>
+                      <input required type="number" step="any" value={lotFormData.totalAmount} onChange={(e) => setLotFormData({...lotFormData, totalAmount: e.target.value})} className="glass-input w-full" placeholder="e.g. 5000000" />
+                      {lotFormData.quantity && lotFormData.totalAmount && (
+                        <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                          Avg Price Per Unit: {formatCurrency(parseFloat(lotFormData.totalAmount || '0') / parseFloat(lotFormData.quantity || '1'))}
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Price Per Unit</label>
+                        <input required type="number" step="any" value={lotFormData.pricePerUnit} onChange={(e) => setLotFormData({...lotFormData, pricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Total Validated</label>
+                        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium">
+                          {formatCurrency((parseFloat(lotFormData.quantity || '0') * parseFloat(lotFormData.pricePerUnit || '0')))}
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Date</label>
