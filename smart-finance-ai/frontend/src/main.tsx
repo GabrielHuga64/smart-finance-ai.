@@ -12,7 +12,7 @@ import { AuthProvider } from './context/AuthContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id'}>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || '339628114978-c2c8t2unbfod7usddk8fvn3pc77p0q7j.apps.googleusercontent.com'}>
       <AuthProvider>
         <App />
       </AuthProvider>

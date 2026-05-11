@@ -23,7 +23,7 @@ app.post('/api/auth/google', async (req, res) => {
     const ticket = await googleClient.verifyIdToken({
       idToken: token,
       // Pass the client ID from environment or accept any if not strictly defined for now
-      audience: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id-for-now.apps.googleusercontent.com',
+      audience: process.env.GOOGLE_CLIENT_ID || '339628114978-c2c8t2unbfod7usddk8fvn3pc77p0q7j.apps.googleusercontent.com',
     });
     const payload = ticket.getPayload();
     const { sub, email, name, picture } = payload;
