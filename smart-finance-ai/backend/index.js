@@ -589,6 +589,7 @@ app.post('/api/monthly-reports/generate', async (req, res) => {
     });
 
     const balance = totalIncome - totalExpense;
+    const currentMonthBalance = currentMonthIncome - currentMonthExpense;
     // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
     const gabunganAset = totalCurrentValue + balance; 
 
@@ -596,7 +597,7 @@ app.post('/api/monthly-reports/generate', async (req, res) => {
     const prompt = `Saya memiliki data keuangan bulan ini sebagai berikut:
 Total Pemasukan Bulan Ini: Rp ${currentMonthIncome.toLocaleString('id-ID')}
 Total Pengeluaran Bulan Ini: Rp ${currentMonthExpense.toLocaleString('id-ID')}
-Saldo Kas Keseluruhan: Rp ${balance.toLocaleString('id-ID')}
+Saldo Kas (Sisa Kas Bulan Ini): Rp ${currentMonthBalance.toLocaleString('id-ID')}
 Total Aset Investasi: Rp ${totalCurrentValue.toLocaleString('id-ID')}
 Total Gabungan Aset: Rp ${gabunganAset.toLocaleString('id-ID')}
 
