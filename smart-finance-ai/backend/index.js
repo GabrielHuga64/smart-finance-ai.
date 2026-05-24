@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { PrismaClient } = require('./generated/client');
+const { PrismaClient } = require('@prisma/client');
 const { GoogleGenAI } = require('@google/genai');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
@@ -546,6 +546,116 @@ app.get('/api/monthly-reports', async (req, res) => {
     res.json(reports);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+app.post('/api/monthly-reports/generate', async (req, res) => {
+  try {
+    // 1. Fetch transactions and investments for req.user.id
+    const transactions = await prisma.transaction.findMany({ where: { userId: req.user.id } });
+    const investments = await prisma.investment.findMany({ where: { userId: req.user.id } });
+    
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let currentMonthIncome = 0;
+    let currentMonthExpense = 0;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    transactions.forEach((tx) => {
+      const txDate = new Date(tx.date);
+      const isCurrentMonth = txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+
+      if (tx.type === 'INCOME') {
+        totalIncome += tx.amount;
+        if (isCurrentMonth) currentMonthIncome += tx.amount;
+      }
+      else if (tx.type === 'EXPENSE') {
+        totalExpense += tx.amount;
+        if (isCurrentMonth) currentMonthExpense += tx.amount;
+      }
+    });
+
+    let totalInvested = 0;
+    let totalCurrentValue = 0;
+    let totalDividends = 0;
+
+    investments.forEach((inv) => {
+      totalInvested += inv.investedAmount;
+      totalCurrentValue += inv.currentValue;
+      totalDividends += (inv.dividends || 0);
+    });
+
+    const balance = totalIncome - totalExpense;
+    // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
+    const gabunganAset = totalCurrentValue + balance; 
+
+    // 2. Generate prompt
+    const prompt = `Saya memiliki data keuangan bulan ini sebagai berikut:
+Total Pemasukan Bulan Ini: Rp ${currentMonthIncome.toLocaleString('id-ID')}
+Total Pengeluaran Bulan Ini: Rp ${currentMonthExpense.toLocaleString('id-ID')}
+Saldo Kas Keseluruhan: Rp ${balance.toLocaleString('id-ID')}
+Total Aset Investasi: Rp ${totalCurrentValue.toLocaleString('id-ID')}
+Total Gabungan Aset: Rp ${gabunganAset.toLocaleString('id-ID')}
+
+Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengenai kondisi keuangan saya saat ini, dan berikan saran untuk bulan depan. Tulis dalam bahasa Indonesia yang memotivasi. Format dengan poin-poin.`;
+
+    // 3. Call Gemini
+    let response;
+    try {
+      response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: prompt,
+      });
+    } catch (fallbackError) {
+      console.warn("Gemini 3 Flash Preview failed. Falling back to Gemini 2.5 Flash...");
+      response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+      });
+    }
+
+    const aiAnalysis = response.text;
+    const monthFormatter = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
+    const currentMonthStr = monthFormatter.format(new Date());
+
+    // 4. Save to MonthlyReport table
+    const existing = await prisma.monthlyReport.findFirst({
+      where: { month: currentMonthStr, userId: req.user.id }
+    });
+
+    let report;
+    if (existing) {
+      report = await prisma.monthlyReport.update({
+        where: { id: existing.id, userId: req.user.id },
+        data: {
+          totalAssets: gabunganAset,
+          totalIncome: currentMonthIncome,
+          totalExpense: currentMonthExpense,
+          investmentValue: totalCurrentValue,
+          aiAnalysis
+        }
+      });
+    } else {
+      report = await prisma.monthlyReport.create({
+        data: {
+          userId: req.user.id,
+          month: currentMonthStr,
+          totalAssets: gabunganAset,
+          totalIncome: currentMonthIncome,
+          totalExpense: currentMonthExpense,
+          investmentValue: totalCurrentValue,
+          aiAnalysis
+        }
+      });
+    }
+
+    res.json(report);
+  } catch (error) {
+    console.error("Generate Monthly Report Error:", error);
+    res.status(500).json({ error: 'Failed to generate monthly report via AI' });
   }
 });
 

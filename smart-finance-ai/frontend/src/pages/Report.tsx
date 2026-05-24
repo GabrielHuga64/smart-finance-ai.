@@ -9,7 +9,6 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 const API_URL = import.meta.env.VITE_API_URL || '/_/backend/api';
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 interface MonthlyReport {
   id: string;
@@ -86,47 +85,17 @@ export default function Report() {
   }, []);
 
   const handleFixsasiAI = async () => {
-    if (!GEMINI_API_KEY) {
-      alert("Gemini API Key is missing in environment variables.");
-      return;
-    }
-    
     setIsAnalyzing(true);
     setMascotMood('thinking');
     setMascotMessage('Sedang menganalisis laporan keuanganmu...');
 
     try {
-      const prompt = `Saya memiliki data keuangan bulan ini sebagai berikut:
-Total Pemasukan Bulan Ini: Rp ${summary.currentMonthIncome.toLocaleString('id-ID')}
-Total Pengeluaran Bulan Ini: Rp ${summary.currentMonthExpense.toLocaleString('id-ID')}
-Saldo Kas Keseluruhan: Rp ${summary.balance.toLocaleString('id-ID')}
-Total Aset Investasi: Rp ${summary.totalInvestmentValue.toLocaleString('id-ID')}
-Total Gabungan Aset: Rp ${summary.gabunganAset.toLocaleString('id-ID')}
-
-Tolong berikan "Fixsasi" atau kesimpulan analisis profesional namun ramah mengenai kondisi keuangan saya saat ini, dan berikan saran untuk bulan depan. Tulis dalam bahasa Indonesia yang memotivasi. Format dengan poin-poin.`;
-
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ parts: [{ text: prompt }] }],
-        }
-      );
-
-      const analysisText = response.data.candidates[0].content.parts[0].text;
+      const response = await axios.post(`${API_URL}/monthly-reports/generate`);
+      const analysisText = response.data.aiAnalysis;
+      
       setAiAnalysis(analysisText);
       setMascotMood('excited');
       setMascotMessage('Analisis selesai! Hasilnya luar biasa!');
-      
-      // Auto save to database
-      const monthFormatter = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
-      await axios.post(`${API_URL}/monthly-reports`, {
-        month: monthFormatter.format(new Date()),
-        totalAssets: summary.gabunganAset,
-        totalIncome: summary.currentMonthIncome,
-        totalExpense: summary.currentMonthExpense,
-        investmentValue: summary.totalInvestmentValue,
-        aiAnalysis: analysisText
-      });
       
       fetchData();
     } catch (error) {
