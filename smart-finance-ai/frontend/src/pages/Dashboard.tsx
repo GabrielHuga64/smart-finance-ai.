@@ -61,8 +61,12 @@ export default function Dashboard() {
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
 
-  const monthIncome = currentMonthTransactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + curr.amount, 0);
-  const monthExpense = currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + curr.amount, 0);
+  const monthIncome = currentMonthTransactions
+    .filter(t => t.type === 'INCOME' && t.description !== 'Saldo Awal (Sisa Kas Bulan Lalu)')
+    .reduce((acc, curr) => acc + curr.amount, 0);
+  const monthExpense = currentMonthTransactions
+    .filter(t => t.type === 'EXPENSE' && t.description !== 'Saldo Awal (Sisa Kas Bulan Lalu)')
+    .reduce((acc, curr) => acc + curr.amount, 0);
   const sisaCashBulanIni = monthIncome - monthExpense;
 
   // 1. Expense Data (Pie)
@@ -80,7 +84,7 @@ export default function Dashboard() {
 
   // 2. Income Data (Bar)
   const incomeData = currentMonthTransactions
-    .filter(t => t.type === 'INCOME')
+    .filter(t => t.type === 'INCOME' && t.description !== 'Saldo Awal (Sisa Kas Bulan Lalu)')
     .reduce<{name: string; value: number}[]>((acc, curr) => {
       const existing = acc.find(item => item.name === curr.category);
       if (existing) existing.value += curr.amount;

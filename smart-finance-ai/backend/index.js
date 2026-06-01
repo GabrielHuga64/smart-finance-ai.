@@ -33,8 +33,7 @@ async function syncMonthlyReport(userId, dateInput) {
     const transactions = await prisma.transaction.findMany({ where: { userId } });
     const investments = await prisma.investment.findMany({ where: { userId } });
 
-    let totalIncome = 0;
-    let totalExpense = 0;
+    let monthStartingBalance = 0;
     let monthIncome = 0;
     let monthExpense = 0;
 
@@ -42,17 +41,15 @@ async function syncMonthlyReport(userId, dateInput) {
       const txDate = new Date(tx.date);
       const txMonthStr = monthFormatter.format(txDate);
 
-      if (tx.type === 'INCOME') {
-        totalIncome += tx.amount;
-      } else if (tx.type === 'EXPENSE') {
-        totalExpense += tx.amount;
-      }
-
       if (txMonthStr === monthStr) {
-        if (tx.type === 'INCOME') {
-          monthIncome += tx.amount;
-        } else if (tx.type === 'EXPENSE') {
-          monthExpense += tx.amount;
+        if (tx.description === 'Saldo Awal (Sisa Kas Bulan Lalu)') {
+          monthStartingBalance += tx.amount;
+        } else {
+          if (tx.type === 'INCOME') {
+            monthIncome += tx.amount;
+          } else if (tx.type === 'EXPENSE') {
+            monthExpense += tx.amount;
+          }
         }
       }
     });
@@ -62,7 +59,7 @@ async function syncMonthlyReport(userId, dateInput) {
       totalCurrentValue += inv.currentValue;
     });
 
-    const monthBalance = monthIncome - monthExpense;
+    const monthBalance = monthStartingBalance + (monthIncome - monthExpense);
     const totalAssets = totalCurrentValue + monthBalance;
 
     if (existingReport) {
@@ -721,8 +718,7 @@ app.get('/api/summary', async (req, res) => {
     const transactions = await prisma.transaction.findMany({ where: { userId: req.user.id } });
     const investments = await prisma.investment.findMany({ where: { userId: req.user.id } });
     
-    let totalIncome = 0;
-    let totalExpense = 0;
+    let currentMonthStartingBalance = 0;
     let currentMonthIncome = 0;
     let currentMonthExpense = 0;
 
@@ -734,13 +730,16 @@ app.get('/api/summary', async (req, res) => {
       const txDate = new Date(tx.date);
       const isCurrentMonth = txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
 
-      if (tx.type === 'INCOME') {
-        totalIncome += tx.amount;
-        if (isCurrentMonth) currentMonthIncome += tx.amount;
-      }
-      else if (tx.type === 'EXPENSE') {
-        totalExpense += tx.amount;
-        if (isCurrentMonth) currentMonthExpense += tx.amount;
+      if (isCurrentMonth) {
+        if (tx.description === 'Saldo Awal (Sisa Kas Bulan Lalu)') {
+          currentMonthStartingBalance += tx.amount;
+        } else {
+          if (tx.type === 'INCOME') {
+            currentMonthIncome += tx.amount;
+          } else if (tx.type === 'EXPENSE') {
+            currentMonthExpense += tx.amount;
+          }
+        }
       }
     });
 
@@ -754,13 +753,13 @@ app.get('/api/summary', async (req, res) => {
       totalDividends += (inv.dividends || 0);
     });
 
-    const balance = currentMonthIncome - currentMonthExpense;
+    const balance = currentMonthStartingBalance + (currentMonthIncome - currentMonthExpense);
     // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
     const gabunganAset = totalCurrentValue + balance; 
 
     res.json({
-      totalIncome,
-      totalExpense,
+      totalIncome: currentMonthIncome,
+      totalExpense: currentMonthExpense,
       currentMonthIncome,
       currentMonthExpense,
       balance,
@@ -796,8 +795,7 @@ app.post('/api/monthly-reports/generate', async (req, res) => {
     const transactions = await prisma.transaction.findMany({ where: { userId: req.user.id } });
     const investments = await prisma.investment.findMany({ where: { userId: req.user.id } });
     
-    let totalIncome = 0;
-    let totalExpense = 0;
+    let currentMonthStartingBalance = 0;
     let currentMonthIncome = 0;
     let currentMonthExpense = 0;
 
@@ -809,13 +807,16 @@ app.post('/api/monthly-reports/generate', async (req, res) => {
       const txDate = new Date(tx.date);
       const isCurrentMonth = txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
 
-      if (tx.type === 'INCOME') {
-        totalIncome += tx.amount;
-        if (isCurrentMonth) currentMonthIncome += tx.amount;
-      }
-      else if (tx.type === 'EXPENSE') {
-        totalExpense += tx.amount;
-        if (isCurrentMonth) currentMonthExpense += tx.amount;
+      if (isCurrentMonth) {
+        if (tx.description === 'Saldo Awal (Sisa Kas Bulan Lalu)') {
+          currentMonthStartingBalance += tx.amount;
+        } else {
+          if (tx.type === 'INCOME') {
+            currentMonthIncome += tx.amount;
+          } else if (tx.type === 'EXPENSE') {
+            currentMonthExpense += tx.amount;
+          }
+        }
       }
     });
 
@@ -829,7 +830,7 @@ app.post('/api/monthly-reports/generate', async (req, res) => {
       totalDividends += (inv.dividends || 0);
     });
 
-    const currentMonthBalance = currentMonthIncome - currentMonthExpense;
+    const currentMonthBalance = currentMonthStartingBalance + (currentMonthIncome - currentMonthExpense);
     // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
     const gabunganAset = totalCurrentValue + currentMonthBalance; 
 
