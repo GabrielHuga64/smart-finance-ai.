@@ -22,6 +22,15 @@ export default function Transactions() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [isCustomInvestmentCategory, setIsCustomInvestmentCategory] = useState(false);
+
+  const getCurrentMonthString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  };
+
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthString());
   
   const [formData, setFormData] = useState({
     amount: '',
@@ -52,8 +61,36 @@ export default function Transactions() {
   }, []);
 
   const formatCurrency = formatCurrencyMasked;
-  const standardCategories = ['Food', 'Transport', 'Utilities', 'Shopping', 'Investasi', 'Salary', 'Bonus', 'Kupon / Yield'];
-  const transactionCategories = [...new Set([...standardCategories, ...transactions.map(tx => tx.category)])].filter(Boolean);
+  const standardExpenseCategories = ['Food', 'Transport', 'Utilities', 'Shopping', 'Investasi'];
+  const standardIncomeCategories = ['Salary', 'Bonus', 'Kupon / Yield', 'Dividen'];
+
+  const expenseCategories = [...new Set([...standardExpenseCategories, ...transactions.filter(tx => tx.type === 'EXPENSE').map(tx => tx.category)])].filter(Boolean);
+  const incomeCategories = [...new Set([...standardIncomeCategories, ...transactions.filter(tx => tx.type === 'INCOME').map(tx => tx.category)])].filter(Boolean);
+
+  const transactionCategories = formData.type === 'EXPENSE' ? expenseCategories : incomeCategories;
+
+  const filteredTransactions = transactions.filter(tx => {
+    const d = new Date(tx.date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}` === selectedMonth;
+  });
+
+  const availableMonths = [...new Set([
+    getCurrentMonthString(),
+    ...transactions.map(tx => {
+      const d = new Date(tx.date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      return `${year}-${month}`;
+    })
+  ])].sort((a, b) => b.localeCompare(a));
+
+  const formatMonthOption = (monthStr: string) => {
+    const [year, month] = monthStr.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  };
 
   const handleEdit = (tx: Transaction) => {
     setFormData({
@@ -129,10 +166,21 @@ export default function Transactions() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Transactions</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your income and expenses.</p>
         </div>
-        <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setIsCustomInvestmentCategory(false); setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: new Date().toISOString().split('T')[0], addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
-          <Plus size={20} />
-          <span>Add New</span>
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <select 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="glass-input bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-200"
+          >
+            {availableMonths.map(m => (
+              <option key={m} value={m}>{formatMonthOption(m)}</option>
+            ))}
+          </select>
+          <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setIsCustomInvestmentCategory(false); setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: selectedMonth === getCurrentMonthString() ? new Date().toISOString().split('T')[0] : `${selectedMonth}-01`, addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+            <Plus size={20} />
+            <span>Add New</span>
+          </button>
+        </div>
       </div>
 
       <div className="glass-panel overflow-x-auto">
@@ -147,7 +195,7 @@ export default function Transactions() {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((tx) => (
+            {filteredTransactions.map((tx) => (
               <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                 <td className="px-6 py-4">{new Date(tx.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
@@ -176,7 +224,7 @@ export default function Transactions() {
                 </td>
               </tr>
             ))}
-            {transactions.length === 0 && (
+            {filteredTransactions.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
                   No transactions found. Click "Add New" to create one.
@@ -197,14 +245,14 @@ export default function Transactions() {
               <div className="flex gap-4 mb-6">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, type: 'EXPENSE' })}
+                  onClick={() => setFormData({ ...formData, type: 'EXPENSE', category: '' })}
                   className={`flex-1 py-2 rounded-xl border transition-all ${formData.type === 'EXPENSE' ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-semibold' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'}`}
                 >
                   Expense
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, type: 'INCOME' })}
+                  onClick={() => setFormData({ ...formData, type: 'INCOME', category: '' })}
                   className={`flex-1 py-2 rounded-xl border transition-all ${formData.type === 'INCOME' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 font-semibold' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'}`}
                 >
                   Income

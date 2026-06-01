@@ -12,6 +12,70 @@ const prisma = new PrismaClient({});
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const googleClient = new OAuth2Client();
 
+const monthFormatter = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
+
+async function syncMonthlyReport(userId, dateInput) {
+  try {
+    const date = dateInput ? new Date(dateInput) : new Date();
+    const monthStr = monthFormatter.format(date);
+
+    const existingReport = await prisma.monthlyReport.findFirst({
+      where: { month: monthStr, userId }
+    });
+
+    if (existingReport) {
+      const transactions = await prisma.transaction.findMany({ where: { userId } });
+      const investments = await prisma.investment.findMany({ where: { userId } });
+
+      let totalIncome = 0;
+      let totalExpense = 0;
+      let monthIncome = 0;
+      let monthExpense = 0;
+
+      transactions.forEach((tx) => {
+        const txDate = new Date(tx.date);
+        const txMonthStr = monthFormatter.format(txDate);
+
+        if (tx.type === 'INCOME') {
+          totalIncome += tx.amount;
+        } else if (tx.type === 'EXPENSE') {
+          totalExpense += tx.amount;
+        }
+
+        if (txMonthStr === monthStr) {
+          if (tx.type === 'INCOME') {
+            monthIncome += tx.amount;
+          } else if (tx.type === 'EXPENSE') {
+            monthExpense += tx.amount;
+          }
+        }
+      });
+
+      let totalCurrentValue = 0;
+      investments.forEach((inv) => {
+        totalCurrentValue += inv.currentValue;
+      });
+
+      const balance = totalIncome - totalExpense;
+      const totalAssets = totalCurrentValue + balance;
+
+      await prisma.monthlyReport.update({
+        where: { id: existingReport.id },
+        data: {
+          totalIncome: monthIncome,
+          totalExpense: monthExpense,
+          totalAssets: totalAssets,
+          investmentValue: totalCurrentValue
+        }
+      });
+      console.log(`Synced MonthlyReport for ${monthStr}`);
+    }
+  } catch (error) {
+    console.error(`Error syncing monthly report:`, error);
+  }
+}
+
+
 app.use(cors());
 app.use(express.json());
 
@@ -92,6 +156,7 @@ app.post('/api/transactions', async (req, res) => {
         date: date ? new Date(date) : new Date(),
       },
     });
+    await syncMonthlyReport(req.user.id, transaction.date);
     res.json(transaction);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add transaction' });
@@ -100,8 +165,10 @@ app.post('/api/transactions', async (req, res) => {
 
 app.put('/api/transactions/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { amount, type, category, description, date } = req.body;
+    const oldTx = await prisma.transaction.findUnique({
+      where: { id, userId: req.user.id }
+    });
+
     const transaction = await prisma.transaction.update({
       where: { id, userId: req.user.id },
       data: {
@@ -112,6 +179,12 @@ app.put('/api/transactions/:id', async (req, res) => {
         date: date ? new Date(date) : new Date(),
       },
     });
+
+    if (oldTx) {
+      await syncMonthlyReport(req.user.id, oldTx.date);
+    }
+    await syncMonthlyReport(req.user.id, transaction.date);
+
     res.json(transaction);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update transaction' });
@@ -121,7 +194,16 @@ app.put('/api/transactions/:id', async (req, res) => {
 app.delete('/api/transactions/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const oldTx = await prisma.transaction.findUnique({
+      where: { id, userId: req.user.id }
+    });
+
     await prisma.transaction.delete({ where: { id, userId: req.user.id } });
+
+    if (oldTx) {
+      await syncMonthlyReport(req.user.id, oldTx.date);
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete transaction' });
@@ -192,6 +274,7 @@ app.post('/api/investments', async (req, res) => {
         }
       });
 
+      await syncMonthlyReport(req.user.id, investment.date);
       return res.json(investment);
     } else {
       // Create new
@@ -222,6 +305,7 @@ app.post('/api/investments', async (req, res) => {
         }
       });
 
+      await syncMonthlyReport(req.user.id, investment.date);
       return res.json(investment);
     }
   } catch (error) {
@@ -249,6 +333,7 @@ app.put('/api/investments/:id', async (req, res) => {
         date: date ? new Date(date) : new Date(),
       },
     });
+    await syncMonthlyReport(req.user.id, investment.date);
     res.json(investment);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update investment' });
@@ -258,7 +343,11 @@ app.put('/api/investments/:id', async (req, res) => {
 app.delete('/api/investments/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const oldInv = await prisma.investment.findUnique({ where: { id, userId: req.user.id } });
     await prisma.investment.delete({ where: { id, userId: req.user.id } });
+    if (oldInv) {
+      await syncMonthlyReport(req.user.id, oldInv.date);
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete investment' });
@@ -310,6 +399,7 @@ app.put('/api/investment-purchases/:id', async (req, res) => {
       }
     });
 
+    await syncMonthlyReport(req.user.id, updatedPurchase.date);
     res.json(updatedPurchase);
   } catch (error) {
     console.error("Failed to update purchase:", error);
@@ -355,6 +445,7 @@ app.delete('/api/investment-purchases/:id', async (req, res) => {
       }
     });
 
+    await syncMonthlyReport(req.user.id, purchase.date);
     res.json({ success: true, updatedParent });
   } catch (error) {
     console.error("Failed to delete purchase:", error);
@@ -390,17 +481,19 @@ app.post('/api/investment-dividends', async (req, res) => {
       data: { dividends: totalDividends }
     });
 
-    // Automatically record as an INCOME transaction
-    await prisma.transaction.create({
+    // Automatically record as an INCOME transaction with Ref id
+    const tx = await prisma.transaction.create({
       data: {
         userId: req.user.id,
         amount: parseFloat(amount),
         type: "INCOME",
         category: "Dividen",
-        description: `Dividen dari ${updatedParent.name}`,
+        description: `Dividen dari ${updatedParent.name} (Ref: ${dividend.id})`,
         date: date ? new Date(date) : new Date(),
       }
     });
+
+    await syncMonthlyReport(req.user.id, tx.date);
 
     res.json(dividend);
   } catch (error) {
@@ -435,6 +528,40 @@ app.put('/api/investment-dividends/:id', async (req, res) => {
       data: { dividends: totalDividends }
     });
 
+    // Reflect in transactions!
+    const refString = `(Ref: ${id})`;
+    const tx = await prisma.transaction.findFirst({
+      where: {
+        userId: req.user.id,
+        description: { contains: refString }
+      }
+    });
+
+    if (tx) {
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: {
+          amount: parseFloat(amount),
+          date: date ? new Date(date) : new Date(),
+        }
+      });
+      await syncMonthlyReport(req.user.id, tx.date);
+    } else {
+      // Fallback if not found
+      const newTx = await prisma.transaction.create({
+        data: {
+          userId: req.user.id,
+          amount: parseFloat(amount),
+          type: "INCOME",
+          category: "Dividen",
+          description: `Dividen dari ${updatedParent.name} (Ref: ${id})`,
+          date: date ? new Date(date) : new Date(),
+        }
+      });
+      await syncMonthlyReport(req.user.id, newTx.date);
+    }
+
+    await syncMonthlyReport(req.user.id, updatedDividend.date);
     res.json(updatedDividend);
   } catch (error) {
     console.error("Failed to update dividend:", error);
@@ -466,6 +593,21 @@ app.delete('/api/investment-dividends/:id', async (req, res) => {
       data: { dividends: totalDividends }
     });
 
+    // Reflect in transactions!
+    const refString = `(Ref: ${id})`;
+    const tx = await prisma.transaction.findFirst({
+      where: {
+        userId: req.user.id,
+        description: { contains: refString }
+      }
+    });
+
+    if (tx) {
+      await prisma.transaction.delete({ where: { id: tx.id } });
+      await syncMonthlyReport(req.user.id, tx.date);
+    }
+
+    await syncMonthlyReport(req.user.id, dividend.date);
     res.json({ success: true, updatedParent });
   } catch (error) {
     console.error("Failed to delete dividend:", error);

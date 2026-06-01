@@ -688,7 +688,9 @@ export default function Investments() {
                   ) : (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Average Buy Price (Per Unit)</label>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Average Buy Price ({formData.unitType === 'Lot' ? 'Per Lot / 100 Lembar' : formData.unitType === 'Lembar' ? 'Per Lembar' : formData.unitType === 'Gram' ? 'Per Gram' : 'Per Unit'})
+                        </label>
                         <input required type="number" step="any" value={formData.buyPricePerUnit} onChange={(e) => setFormData({...formData, buyPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="0" />
                         {formData.quantity && formData.buyPricePerUnit && (
                           <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
@@ -699,13 +701,20 @@ export default function Investments() {
                       
                       <div>
                         <div className="flex justify-between items-end mb-1">
-                          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Current Price (Per Unit)</label>
+                          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">
+                            Current Price ({formData.unitType === 'Lot' ? 'Per Lot / 100 Lembar' : formData.unitType === 'Lembar' ? 'Per Lembar' : formData.unitType === 'Gram' ? 'Per Gram' : 'Per Unit'})
+                          </label>
                           <button type="button" onClick={handleGeneratePrice} disabled={isGeneratingPrice} className="text-xs flex items-center gap-1 text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 px-2 py-1 rounded-md transition-colors border border-violet-200 dark:border-violet-800 disabled:opacity-50">
                             <Sparkles size={12} />
                             {isGeneratingPrice ? 'Fetching...' : 'Auto-fill AI'}
                           </button>
                         </div>
                         <input required type="number" value={formData.lastPricePerUnit} onChange={(e) => setFormData({...formData, lastPricePerUnit: e.target.value})} className="glass-input w-full" placeholder="Manual Input or Use AI" />
+                        {formData.quantity && formData.lastPricePerUnit && (
+                          <p className="text-xs text-sky-600 dark:text-sky-400 mt-1 font-medium">
+                            Total Valuation: {formatCurrency(parseFloat(formData.quantity || '0') * parseFloat(formData.lastPricePerUnit || '0'))}
+                          </p>
+                        )}
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Total Valuation will be calculated automatically.</p>
                       </div>
                     </>
