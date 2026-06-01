@@ -62,8 +62,8 @@ async function syncMonthlyReport(userId, dateInput) {
       totalCurrentValue += inv.currentValue;
     });
 
-    const balance = totalIncome - totalExpense;
-    const totalAssets = totalCurrentValue + balance;
+    const monthBalance = monthIncome - monthExpense;
+    const totalAssets = totalCurrentValue + monthBalance;
 
     if (existingReport) {
       await prisma.monthlyReport.update({
@@ -675,7 +675,7 @@ app.get('/api/summary', async (req, res) => {
       totalDividends += (inv.dividends || 0);
     });
 
-    const balance = totalIncome - totalExpense;
+    const balance = currentMonthIncome - currentMonthExpense;
     // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
     const gabunganAset = totalCurrentValue + balance; 
 
@@ -750,10 +750,9 @@ app.post('/api/monthly-reports/generate', async (req, res) => {
       totalDividends += (inv.dividends || 0);
     });
 
-    const balance = totalIncome - totalExpense;
     const currentMonthBalance = currentMonthIncome - currentMonthExpense;
     // Gabungan Aset = Saldo + Current Value (Dividends are already cash/balance)
-    const gabunganAset = totalCurrentValue + balance; 
+    const gabunganAset = totalCurrentValue + currentMonthBalance; 
 
     // 2. Generate prompt
     const prompt = `Saya memiliki data keuangan bulan ini sebagai berikut:

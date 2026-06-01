@@ -52,36 +52,6 @@ export default function Dashboard() {
 
   const formatCurrency = formatCurrencyMasked;
 
-  // 1. Expense Data (Pie)
-  const totalExpense = summary.totalExpense || 1; 
-  const expenseData = transactions
-    .filter(t => t.type === 'EXPENSE')
-    .reduce<{name: string; value: number}[]>((acc, curr) => {
-      const existing = acc.find(item => item.name === curr.category);
-      if (existing) existing.value += curr.amount;
-      else acc.push({ name: curr.category, value: curr.amount });
-      return acc;
-    }, [])
-    .map(item => ({ ...item, percentage: ((item.value / totalExpense) * 100).toFixed(1) }));
-
-  // 2. Income Data (Bar)
-  const incomeData = transactions
-    .filter(t => t.type === 'INCOME')
-    .reduce<{name: string; value: number}[]>((acc, curr) => {
-      const existing = acc.find(item => item.name === curr.category);
-      if (existing) existing.value += curr.amount;
-      else acc.push({ name: curr.category, value: curr.amount });
-      return acc;
-    }, []);
-
-
-
-  // 4. Asset Composition (Bar)
-  const assetData = [
-    { name: 'Saldo Kas', value: Math.max(0, summary.balance) }, // Avoid negative bars if possible
-    { name: 'Aset Investasi', value: summary.totalInvestmentValue }
-  ];
-
   // 5. Current Month Metrics
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -94,6 +64,35 @@ export default function Dashboard() {
   const monthIncome = currentMonthTransactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + curr.amount, 0);
   const monthExpense = currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + curr.amount, 0);
   const sisaCashBulanIni = monthIncome - monthExpense;
+
+  // 1. Expense Data (Pie)
+  const monthExpenseForChart = currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalExpense = monthExpenseForChart || 1; 
+  const expenseData = currentMonthTransactions
+    .filter(t => t.type === 'EXPENSE')
+    .reduce<{name: string; value: number}[]>((acc, curr) => {
+      const existing = acc.find(item => item.name === curr.category);
+      if (existing) existing.value += curr.amount;
+      else acc.push({ name: curr.category, value: curr.amount });
+      return acc;
+    }, [])
+    .map(item => ({ ...item, percentage: ((item.value / totalExpense) * 100).toFixed(1) }));
+
+  // 2. Income Data (Bar)
+  const incomeData = currentMonthTransactions
+    .filter(t => t.type === 'INCOME')
+    .reduce<{name: string; value: number}[]>((acc, curr) => {
+      const existing = acc.find(item => item.name === curr.category);
+      if (existing) existing.value += curr.amount;
+      else acc.push({ name: curr.category, value: curr.amount });
+      return acc;
+    }, []);
+
+  // 4. Asset Composition (Bar)
+  const assetData = [
+    { name: 'Saldo Kas', value: Math.max(0, summary.balance) }, // Avoid negative bars if possible
+    { name: 'Aset Investasi', value: summary.totalInvestmentValue }
+  ];
 
   if (loading) return <div className="flex h-full items-center justify-center"><div className="animate-pulse text-sky-500">Loading...</div></div>;
 
@@ -136,8 +135,8 @@ export default function Dashboard() {
         <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="glass-panel p-6 border-emerald-200 dark:border-emerald-900 bg-emerald-50/30 dark:bg-emerald-900/10">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-emerald-600 dark:text-emerald-400 font-medium mb-1">Total Pendapatan</p>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(summary.totalIncome)}</h2>
+              <p className="text-emerald-600 dark:text-emerald-400 font-medium mb-1">Pendapatan Bulan Ini</p>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(monthIncome)}</h2>
             </div>
             <div className="p-3 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl text-emerald-600 dark:text-emerald-400">
               <ArrowUpRight size={24} />
@@ -148,8 +147,8 @@ export default function Dashboard() {
         <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="glass-panel p-6 border-rose-200 dark:border-rose-900 bg-rose-50/30 dark:bg-rose-900/10">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-rose-600 dark:text-rose-400 font-medium mb-1">Total Pengeluaran</p>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(summary.totalExpense)}</h2>
+              <p className="text-rose-600 dark:text-rose-400 font-medium mb-1">Pengeluaran Bulan Ini</p>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(monthExpense)}</h2>
             </div>
             <div className="p-3 bg-rose-100 dark:bg-rose-900/50 rounded-xl text-rose-600 dark:text-rose-400">
               <ArrowDownRight size={24} />
