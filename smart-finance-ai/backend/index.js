@@ -18,47 +18,54 @@ async function syncMonthlyReport(userId, dateInput) {
   try {
     const date = dateInput ? new Date(dateInput) : new Date();
     const monthStr = monthFormatter.format(date);
+    const currentMonthStr = monthFormatter.format(new Date());
+
+    // Do not automatically sync reports for previous months
+    if (monthStr !== currentMonthStr) {
+      console.log(`Skipping auto-sync for previous month: ${monthStr}`);
+      return;
+    }
 
     const existingReport = await prisma.monthlyReport.findFirst({
       where: { month: monthStr, userId }
     });
 
-    if (existingReport) {
-      const transactions = await prisma.transaction.findMany({ where: { userId } });
-      const investments = await prisma.investment.findMany({ where: { userId } });
+    const transactions = await prisma.transaction.findMany({ where: { userId } });
+    const investments = await prisma.investment.findMany({ where: { userId } });
 
-      let totalIncome = 0;
-      let totalExpense = 0;
-      let monthIncome = 0;
-      let monthExpense = 0;
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let monthIncome = 0;
+    let monthExpense = 0;
 
-      transactions.forEach((tx) => {
-        const txDate = new Date(tx.date);
-        const txMonthStr = monthFormatter.format(txDate);
+    transactions.forEach((tx) => {
+      const txDate = new Date(tx.date);
+      const txMonthStr = monthFormatter.format(txDate);
 
+      if (tx.type === 'INCOME') {
+        totalIncome += tx.amount;
+      } else if (tx.type === 'EXPENSE') {
+        totalExpense += tx.amount;
+      }
+
+      if (txMonthStr === monthStr) {
         if (tx.type === 'INCOME') {
-          totalIncome += tx.amount;
+          monthIncome += tx.amount;
         } else if (tx.type === 'EXPENSE') {
-          totalExpense += tx.amount;
+          monthExpense += tx.amount;
         }
+      }
+    });
 
-        if (txMonthStr === monthStr) {
-          if (tx.type === 'INCOME') {
-            monthIncome += tx.amount;
-          } else if (tx.type === 'EXPENSE') {
-            monthExpense += tx.amount;
-          }
-        }
-      });
+    let totalCurrentValue = 0;
+    investments.forEach((inv) => {
+      totalCurrentValue += inv.currentValue;
+    });
 
-      let totalCurrentValue = 0;
-      investments.forEach((inv) => {
-        totalCurrentValue += inv.currentValue;
-      });
+    const balance = totalIncome - totalExpense;
+    const totalAssets = totalCurrentValue + balance;
 
-      const balance = totalIncome - totalExpense;
-      const totalAssets = totalCurrentValue + balance;
-
+    if (existingReport) {
       await prisma.monthlyReport.update({
         where: { id: existingReport.id },
         data: {
@@ -68,7 +75,20 @@ async function syncMonthlyReport(userId, dateInput) {
           investmentValue: totalCurrentValue
         }
       });
-      console.log(`Synced MonthlyReport for ${monthStr}`);
+      console.log(`Synced existing MonthlyReport for ${monthStr}`);
+    } else {
+      await prisma.monthlyReport.create({
+        data: {
+          userId,
+          month: monthStr,
+          totalIncome: monthIncome,
+          totalExpense: monthExpense,
+          totalAssets: totalAssets,
+          investmentValue: totalCurrentValue,
+          aiAnalysis: "Belum ada analisis AI. Silakan klik 'Fixsasi AI' untuk melakukan analisis."
+        }
+      });
+      console.log(`Created and synced new MonthlyReport for ${monthStr}`);
     }
   } catch (error) {
     console.error(`Error syncing monthly report:`, error);
