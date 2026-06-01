@@ -61,7 +61,7 @@ export default function Transactions() {
   }, []);
 
   const formatCurrency = formatCurrencyMasked;
-  const standardExpenseCategories = ['Food', 'Transport', 'Utilities', 'Shopping', 'Investasi'];
+  const standardExpenseCategories = ['Food', 'Transport', 'Utilities', 'Shopping', 'Investment'];
   const standardIncomeCategories = ['Salary', 'Bonus', 'Kupon / Yield', 'Dividen'];
 
   const expenseCategories = [...new Set([...standardExpenseCategories, ...transactions.filter(tx => tx.type === 'EXPENSE').map(tx => tx.category)])].filter(Boolean);
