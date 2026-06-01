@@ -166,21 +166,24 @@ export default function Transactions() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Transactions</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your income and expenses.</p>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <select 
-            value={selectedMonth} 
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="glass-input bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-slate-200"
+        <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setIsCustomInvestmentCategory(false); setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: selectedMonth === getCurrentMonthString() ? new Date().toISOString().split('T')[0] : `${selectedMonth}-01`, addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+          <Plus size={20} />
+          <span>Add New</span>
+        </button>
+      </div>
+
+      {/* Month Filter Tabs */}
+      <div className="flex flex-wrap gap-4 border-b border-slate-200 dark:border-slate-700 pb-2">
+        {availableMonths.map(m => (
+          <button 
+            key={m}
+            type="button"
+            onClick={() => setSelectedMonth(m)} 
+            className={`font-semibold pb-2 border-b-2 transition-colors ${selectedMonth === m ? 'border-sky-500 text-sky-600 dark:text-sky-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
           >
-            {availableMonths.map(m => (
-              <option key={m} value={m}>{formatMonthOption(m)}</option>
-            ))}
-          </select>
-          <button onClick={() => { setEditingId(null); setIsCustomCategory(false); setIsCustomInvestmentCategory(false); setFormData({ amount: '', type: 'EXPENSE', description: '', category: '', date: selectedMonth === getCurrentMonthString() ? new Date().toISOString().split('T')[0] : `${selectedMonth}-01`, addToInvestment: false, investmentName: '', investmentCategory: 'Saham', investmentQuantity: '1', investmentUnit: 'Lembar' }); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <Plus size={20} />
-            <span>Add New</span>
+            {formatMonthOption(m)}
           </button>
-        </div>
+        ))}
       </div>
 
       <div className="glass-panel overflow-x-auto">
