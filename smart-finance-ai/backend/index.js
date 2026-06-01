@@ -95,6 +95,79 @@ async function syncMonthlyReport(userId, dateInput) {
   }
 }
 
+async function ensureStartingBalance(userId) {
+  try {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const startOfCurrentMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0);
+    const endOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+    // Check if starting balance transaction already exists for this month
+    const existingStartingBalance = await prisma.transaction.findFirst({
+      where: {
+        userId,
+        category: 'Monthly Income',
+        description: 'Saldo Awal (Sisa Kas Bulan Lalu)',
+        date: {
+          gte: startOfCurrentMonth,
+          lte: endOfCurrentMonth
+        }
+      }
+    });
+
+    if (existingStartingBalance) {
+      return; // Already created
+    }
+
+    // Calculate previous month's surplus
+    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0);
+    const prevMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+
+    const prevTxs = await prisma.transaction.findMany({
+      where: {
+        userId,
+        date: {
+          gte: prevMonthStart,
+          lte: prevMonthEnd
+        }
+      }
+    });
+
+    let prevIncome = 0;
+    let prevExpense = 0;
+    prevTxs.forEach(tx => {
+      if (tx.type === 'INCOME') {
+        prevIncome += tx.amount;
+      } else if (tx.type === 'EXPENSE') {
+        prevExpense += tx.amount;
+      }
+    });
+
+    const previousMonthSurplus = prevIncome - prevExpense;
+
+    if (previousMonthSurplus > 0) {
+      await prisma.transaction.create({
+        data: {
+          userId,
+          amount: previousMonthSurplus,
+          type: 'INCOME',
+          category: 'Monthly Income',
+          description: 'Saldo Awal (Sisa Kas Bulan Lalu)',
+          date: startOfCurrentMonth
+        }
+      });
+      console.log(`Automatically created starting balance transaction for user ${userId} in month ${currentMonth + 1}/${currentYear} with amount ${previousMonthSurplus}`);
+      
+      // Sync reports
+      await syncMonthlyReport(userId, startOfCurrentMonth);
+    }
+  } catch (error) {
+    console.error("Error in ensureStartingBalance:", error);
+  }
+}
+
 
 app.use(cors());
 app.use(express.json());
@@ -153,6 +226,7 @@ app.use('/api/monthly-reports', authMiddleware);
 
 app.get('/api/transactions', async (req, res) => {
   try {
+    await ensureStartingBalance(req.user.id);
     const transactions = await prisma.transaction.findMany({
       where: { userId: req.user.id },
       orderBy: { date: 'desc' },
@@ -185,6 +259,9 @@ app.post('/api/transactions', async (req, res) => {
 
 app.put('/api/transactions/:id', async (req, res) => {
   try {
+    const { id } = req.params;
+    const { amount, type, category, description, date } = req.body;
+
     const oldTx = await prisma.transaction.findUnique({
       where: { id, userId: req.user.id }
     });
@@ -207,6 +284,7 @@ app.put('/api/transactions/:id', async (req, res) => {
 
     res.json(transaction);
   } catch (error) {
+    console.error("PUT /api/transactions/:id error:", error);
     res.status(500).json({ error: 'Failed to update transaction' });
   }
 });
@@ -639,6 +717,7 @@ app.delete('/api/investment-dividends/:id', async (req, res) => {
 
 app.get('/api/summary', async (req, res) => {
   try {
+    await ensureStartingBalance(req.user.id);
     const transactions = await prisma.transaction.findMany({ where: { userId: req.user.id } });
     const investments = await prisma.investment.findMany({ where: { userId: req.user.id } });
     
