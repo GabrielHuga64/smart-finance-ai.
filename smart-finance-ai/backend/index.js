@@ -101,6 +101,35 @@ async function ensureStartingBalance(userId) {
     const startOfCurrentMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0);
     const endOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
+    // Calculate previous month's surplus timezone-independently
+    const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const prevMonthStr = monthFormatter.format(prevMonthDate);
+
+    const prevReport = await prisma.monthlyReport.findFirst({
+      where: { userId, month: prevMonthStr }
+    });
+
+    let previousMonthSurplus = 0;
+    if (prevReport) {
+      previousMonthSurplus = prevReport.totalIncome - prevReport.totalExpense;
+    } else {
+      // Fallback: fetch all transactions and filter in memory using same formatter
+      const allTxs = await prisma.transaction.findMany({ where: { userId } });
+      let prevIncome = 0;
+      let prevExpense = 0;
+      allTxs.forEach(tx => {
+        // Exclude Saldo Awal from previous month to avoid recursive carry over double counting
+        if (tx.description === 'Saldo Awal (Sisa Kas Bulan Lalu)') return;
+
+        const txMonthStr = monthFormatter.format(new Date(tx.date));
+        if (txMonthStr === prevMonthStr) {
+          if (tx.type === 'INCOME') prevIncome += tx.amount;
+          else if (tx.type === 'EXPENSE') prevExpense += tx.amount;
+        }
+      });
+      previousMonthSurplus = prevIncome - prevExpense;
+    }
+
     // Check if starting balance transaction already exists for this month
     const existingStartingBalance = await prisma.transaction.findFirst({
       where: {
@@ -115,34 +144,17 @@ async function ensureStartingBalance(userId) {
     });
 
     if (existingStartingBalance) {
-      return; // Already created
+      // Self-correcting: update if amount differs
+      if (Math.abs(existingStartingBalance.amount - previousMonthSurplus) > 0.01 && previousMonthSurplus > 0) {
+        await prisma.transaction.update({
+          where: { id: existingStartingBalance.id },
+          data: { amount: previousMonthSurplus }
+        });
+        console.log(`Self-corrected starting balance transaction amount for user ${userId} to ${previousMonthSurplus} (was ${existingStartingBalance.amount})`);
+        await syncMonthlyReport(userId, startOfCurrentMonth);
+      }
+      return;
     }
-
-    // Calculate previous month's surplus
-    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0);
-    const prevMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59);
-
-    const prevTxs = await prisma.transaction.findMany({
-      where: {
-        userId,
-        date: {
-          gte: prevMonthStart,
-          lte: prevMonthEnd
-        }
-      }
-    });
-
-    let prevIncome = 0;
-    let prevExpense = 0;
-    prevTxs.forEach(tx => {
-      if (tx.type === 'INCOME') {
-        prevIncome += tx.amount;
-      } else if (tx.type === 'EXPENSE') {
-        prevExpense += tx.amount;
-      }
-    });
-
-    const previousMonthSurplus = prevIncome - prevExpense;
 
     if (previousMonthSurplus > 0) {
       await prisma.transaction.create({
@@ -218,6 +230,7 @@ app.use('/api/investment-purchases', authMiddleware);
 app.use('/api/investment-dividends', authMiddleware);
 app.use('/api/summary', authMiddleware);
 app.use('/api/monthly-reports', authMiddleware);
+app.use('/api/ai', authMiddleware);
 
 // --- TRANSACTIONS ---
 
@@ -446,6 +459,70 @@ app.delete('/api/investments/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete investment' });
+  }
+});
+
+app.post('/api/investments/merge', async (req, res) => {
+  try {
+    const { sourceId, targetId } = req.body;
+    if (!sourceId || !targetId) {
+      return res.status(400).json({ error: 'sourceId and targetId are required' });
+    }
+
+    const source = await prisma.investment.findUnique({
+      where: { id: sourceId, userId: req.user.id }
+    });
+    const target = await prisma.investment.findUnique({
+      where: { id: targetId, userId: req.user.id }
+    });
+
+    if (!source || !target) {
+      return res.status(404).json({ error: 'One or both investments not found' });
+    }
+
+    // 1. Move all purchases (lots) from source to target
+    await prisma.investmentPurchase.updateMany({
+      where: { investmentId: sourceId },
+      data: { investmentId: targetId }
+    });
+
+    // 2. Move all dividend records from source to target
+    await prisma.investmentDividend.updateMany({
+      where: { investmentId: sourceId },
+      data: { investmentId: targetId }
+    });
+
+    // 3. Compute merged metrics
+    const newInvestedAmount = target.investedAmount + source.investedAmount;
+    const newQuantity = (target.quantity || 0) + (source.quantity || 0);
+    const newAveragePrice = newQuantity > 0 ? newInvestedAmount / newQuantity : 0;
+    const newDividends = (target.dividends || 0) + (source.dividends || 0);
+    const newCurrentValue = newQuantity * (target.lastPricePerUnit || 0);
+
+    // 4. Update target investment
+    const updatedTarget = await prisma.investment.update({
+      where: { id: targetId, userId: req.user.id },
+      data: {
+        investedAmount: newInvestedAmount,
+        quantity: newQuantity,
+        averagePrice: newAveragePrice,
+        dividends: newDividends,
+        currentValue: newCurrentValue
+      }
+    });
+
+    // 5. Delete source investment
+    await prisma.investment.delete({
+      where: { id: sourceId, userId: req.user.id }
+    });
+
+    // 6. Sync report for the current month
+    await syncMonthlyReport(req.user.id, new Date());
+
+    res.json(updatedTarget);
+  } catch (error) {
+    console.error("Merge error:", error);
+    res.status(500).json({ error: 'Failed to merge investments' });
   }
 });
 
@@ -1028,20 +1105,84 @@ app.post('/api/ai/get-price', async (req, res) => {
 
 app.post('/api/ai/analyze', async (req, res) => {
   try {
-    const transactions = await prisma.transaction.findMany({ orderBy: { date: 'desc' } });
-    const investments = await prisma.investment.findMany({ orderBy: { date: 'desc' } });
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: req.user.id },
+      orderBy: { date: 'desc' }
+    });
+    const investments = await prisma.investment.findMany({
+      where: { userId: req.user.id },
+      orderBy: { date: 'desc' }
+    });
     
-    let totalIncome = 0;
-    let totalExpense = 0;
-    const categoryBreakdown = {};
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const currentMonthFormatter = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
+    const currentMonthName = currentMonthFormatter.format(now);
+
+    const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const prevMonthName = currentMonthFormatter.format(prevMonthDate);
+
+    const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+    const nextMonthName = currentMonthFormatter.format(nextMonthDate);
+
+    let currentMonthStartingBalance = 0;
+    let currentMonthIncome = 0;
+    let currentMonthExpense = 0;
+    const currentMonthCategoryBreakdown = {};
+    const currentMonthTransactionsList = [];
+
+    let prevMonthStartingBalance = 0;
+    let prevMonthIncome = 0;
+    let prevMonthExpense = 0;
+    const prevMonthCategoryBreakdown = {};
 
     transactions.forEach((tx) => {
-      if (tx.type === 'INCOME') totalIncome += tx.amount;
-      else if (tx.type === 'EXPENSE') {
-        totalExpense += tx.amount;
-        categoryBreakdown[tx.category] = (categoryBreakdown[tx.category] || 0) + tx.amount;
+      const txDate = new Date(tx.date);
+      const txMonth = txDate.getMonth();
+      const txYear = txDate.getFullYear();
+
+      const isCurrentMonth = txMonth === currentMonth && txYear === currentYear;
+      const isPrevMonth = txMonth === prevMonthDate.getMonth() && txYear === prevMonthDate.getFullYear();
+
+      if (isCurrentMonth) {
+        if (tx.description === 'Saldo Awal (Sisa Kas Bulan Lalu)') {
+          currentMonthStartingBalance += tx.amount;
+        } else {
+          if (tx.type === 'INCOME') {
+            currentMonthIncome += tx.amount;
+          } else if (tx.type === 'EXPENSE') {
+            currentMonthExpense += tx.amount;
+            currentMonthCategoryBreakdown[tx.category] = (currentMonthCategoryBreakdown[tx.category] || 0) + tx.amount;
+          }
+        }
+        currentMonthTransactionsList.push({
+          date: txDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' }),
+          description: tx.description || 'Tanpa deskripsi',
+          category: tx.category,
+          amount: tx.amount,
+          type: tx.type
+        });
+      } else if (isPrevMonth) {
+        if (tx.description === 'Saldo Awal (Sisa Kas Bulan Lalu)') {
+          prevMonthStartingBalance += tx.amount;
+        } else {
+          if (tx.type === 'INCOME') {
+            prevMonthIncome += tx.amount;
+          } else if (tx.type === 'EXPENSE') {
+            prevMonthExpense += tx.amount;
+            prevMonthCategoryBreakdown[tx.category] = (prevMonthCategoryBreakdown[tx.category] || 0) + tx.amount;
+          }
+        }
       }
     });
+
+    const currentMonthBalance = currentMonthStartingBalance + (currentMonthIncome - currentMonthExpense);
+    const prevMonthBalance = prevMonthStartingBalance + (prevMonthIncome - prevMonthExpense);
+    
+    // Sort transactions chronologically (oldest first) for start-to-end explanation
+    const sortedCurrentMonthTransactions = [...currentMonthTransactionsList].reverse();
 
     const investmentBreakdown = {};
     let totalInvested = 0;
@@ -1059,30 +1200,51 @@ app.post('/api/ai/analyze', async (req, res) => {
 
     const prompt = `
       Anda adalah penasihat keuangan pribadi kelas dunia yang cerdas, profesional, dan tajam dalam memberikan saran.
-      Berikut adalah ringkasan keuangan saya saat ini:
       
-      [ARUS KAS]
-      - Total Pemasukan: Rp ${totalIncome.toLocaleString('id-ID')}
-      - Total Pengeluaran: Rp ${totalExpense.toLocaleString('id-ID')}
-      - Sisa Kas (Saldo): Rp ${(totalIncome - totalExpense).toLocaleString('id-ID')}
-      
-      Rincian pengeluaran berdasarkan kategori:
-      ${Object.entries(categoryBreakdown).map(([cat, amount]) => `- ${cat}: Rp ${amount.toLocaleString('id-ID')}`).join('\n')}
+      Berikut adalah ringkasan keuangan saya:
 
-      [PORTOFOLIO INVESTASI]
+      [BULAN INI: ${currentMonthName}]
+      - Saldo Kas Awal: Rp ${currentMonthStartingBalance.toLocaleString('id-ID')}
+      - Total Pemasukan: Rp ${currentMonthIncome.toLocaleString('id-ID')}
+      - Total Pengeluaran: Rp ${currentMonthExpense.toLocaleString('id-ID')}
+      - Sisa Kas (Saldo Akhir): Rp ${currentMonthBalance.toLocaleString('id-ID')}
+      
+      Rincian pengeluaran bulan ini berdasarkan kategori:
+      ${Object.entries(currentMonthCategoryBreakdown).map(([cat, amount]) => `- ${cat}: Rp ${amount.toLocaleString('id-ID')}`).join('\n')}
+
+      Detail seluruh aktivitas keuangan/transaksi bulan ini secara kronologis (dari awal hingga akhir):
+      ${sortedCurrentMonthTransactions.map(tx => `- Tanggal ${tx.date}: ${tx.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'} kategori [${tx.category}] sebesar Rp ${tx.amount.toLocaleString('id-ID')} (${tx.description})`).join('\n') || '- Tidak ada aktivitas transaksi bulan ini.'}
+
+      [BULAN SEBELUMNYA: ${prevMonthName}]
+      - Total Pemasukan: Rp ${prevMonthIncome.toLocaleString('id-ID')}
+      - Total Pengeluaran: Rp ${prevMonthExpense.toLocaleString('id-ID')}
+      - Sisa Kas (Saldo): Rp ${prevMonthBalance.toLocaleString('id-ID')}
+
+      [PORTOFOLIO INVESTASI SAAT INI]
       - Total Modal Diinvestasikan: Rp ${totalInvested.toLocaleString('id-ID')}
       - Nilai Aset Investasi Saat Ini: Rp ${totalCurrentValue.toLocaleString('id-ID')}
       - Return / Keuntungan: Rp ${(totalCurrentValue - totalInvested).toLocaleString('id-ID')}
-
       Rincian investasi berdasarkan kelas aset:
       ${Object.entries(investmentBreakdown).map(([cat, val]) => `- ${cat}: Modal Rp ${val.invested.toLocaleString('id-ID')} -> Nilai Saat Ini Rp ${val.current.toLocaleString('id-ID')}`).join('\n')}
 
-      Berikan saya:
-      1. Evaluasi arus kas saat ini (apakah sehat/perlu perbaikan) dan strategi menekan pengeluaran.
-      2. Evaluasi komposisi portofolio aset saat ini (diversifikasi, manajemen risiko).
-      3. Saran investasi ke depan dan peluang pasar terkini berdasarkan profil kelas aset di atas (gunakan analisis data berita dan tren terkini).
-      
-      Gunakan bahasa yang profesional namun ringkas dan mudah dimengerti, dengan format yang rapi (menggunakan bullet points, bold text). Hindari pengantar panjang lebar.
+      Tugas Anda adalah menghasilkan laporan analisis keuangan terstruktur yang terdiri dari:
+
+      **1. Analisis Bulan Ini (${currentMonthName})**
+      Jelaskan seluruh kegiatan keuangan bulan ini dari awal hingga akhir secara mendetail dan kronologis berdasarkan data transaksi di atas. Analisis apakah arus kas bulan ini sehat/perlu perbaikan, evaluasi pengeluaran berdasarkan kategori, portofolio investasi saat ini, serta berikan penjelasan yang lengkap.
+      Di bagian akhir analisis bulan ini, berikan satu sub-poin khusus tentang kesimpulan bulan ini.
+
+      **2. Analisis Bulan Selanjutnya / Bulan Depan (${nextMonthName})**
+      Berikan rekomendasi dan strategi keuangan yang mendetail untuk bulan selanjutnya. Berikan saran alokasi anggaran, taktik menekan pengeluaran berdasarkan tren bulan ini, potensi investasi ke depan, serta peluang pasar terkini berdasarkan portofolio aset di atas.
+      Di bagian akhir analisis bulan selanjutnya ini, berikan satu sub-poin khusus tentang kesimpulan bulan selanjutnya.
+
+      **3. Kesimpulan Akhir**
+      Berikan ringkasan penutup/kesimpulan akhir secara umum mengenai kondisi keuangan keseluruhan.
+
+      ATURAN FORMAT SANGAT PENTING:
+      - Gunakan bahasa Indonesia yang memotivasi, profesional, ringkas, dan mudah dimengerti.
+      - Gunakan format yang rapi (menggunakan bullet points, bold text).
+      - Untuk judul bagian utama, gunakan penulisan judul di baris baru yang diawali dengan ** (contoh: **1. Analisis Bulan Ini (${currentMonthName})**) agar sistem dapat merendernya sebagai tajuk.
+      - Hindari kata pengantar basa-basi panjang lebar di bagian awal laporan. Mulailah langsung ke analisis.
     `;
 
     let response;

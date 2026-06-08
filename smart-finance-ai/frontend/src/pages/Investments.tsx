@@ -214,6 +214,29 @@ export default function Investments() {
         lastPricePerUnit: finalLastPrice.toString(),
       };
       if (editingId) {
+        // Check if there is another investment with the same name (case-insensitive)
+        const duplicate = investments.find(
+          i => i.id !== editingId && i.name.trim().toLowerCase() === formData.name.trim().toLowerCase()
+        );
+        if (duplicate) {
+          const confirmMerge = window.confirm(
+            `Investasi dengan nama "${formData.name}" sudah ada. Apakah Anda ingin menggabungkan (merge) investasi ini dengan yang sudah ada? Semua riwayat lot pembelian dan dividen akan digabungkan.`
+          );
+          if (confirmMerge) {
+            await axios.post(`${API_URL}/investments/merge`, {
+              sourceId: editingId,
+              targetId: duplicate.id
+            });
+            setIsModalOpen(false);
+            setEditingId(null);
+            setIsCustomCategory(false);
+            setFormData({ name: '', category: '', quantity: '1', unitType: 'Lembar', buyPricePerUnit: '', lastPricePerUnit: '', investedAmount: '', currentValue: '', dividends: '', date: new Date().toISOString().split('T')[0] });
+            fetchInvestments();
+            return;
+          } else {
+            return;
+          }
+        }
         await axios.put(`${API_URL}/investments/${editingId}`, payload);
       } else {
         await axios.post(`${API_URL}/investments`, payload);
